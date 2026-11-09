@@ -553,6 +553,7 @@ mark.bad { background: var(--bad-bg); color: var(--bad); text-decoration: line-t
   background: var(--text); color: var(--bg); border-radius: 12px; padding: 12px 16px;
   font-size: 0.9rem; line-height: 1.4; box-shadow: var(--shadow);
 }
+.sound-log { white-space: pre-wrap; margin: 6px 0 0; min-height: 0; }
 .danger-link { background: none; border: none; color: var(--bad); font: inherit; font-size: 0.85rem; cursor: pointer; padding: 0; text-decoration: underline; }
 button:focus-visible, .struct-card:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -811,6 +812,15 @@ button:focus-visible, .struct-card:focus-visible, input:focus-visible, textarea:
           <span><i class="dot lv-good"></i>≥ 90%</span><span><i class="dot lv-ok"></i>70–89%</span>
           <span><i class="dot lv-weak"></i>&lt; 70%</span><span><i class="dot lv-none"></i>jeszcze nie ćwiczone</span>
         </div>
+      </div>
+
+      <div class="panel" id="soundTestPanel">
+        <div class="panel-head"><h3>Test dźwięku</h3><span class="panel-sub">gdy przyciski 🔊 milczą</span></div>
+        <div class="report-row">
+          <button class="btn btn-ghost" id="soundTestBtn" type="button">🔊 Testuj dźwięk</button>
+          <button class="btn btn-ghost" id="soundTestDefault" type="button">🔊 Testuj głosem domyślnym</button>
+        </div>
+        <pre class="report-box sound-log" id="soundTestLog">Kliknij „Testuj dźwięk”. Jeśli nic nie usłyszysz, skopiuj ten tekst i wyślij go do pomocy.</pre>
       </div>
 
       <div class="panel">
@@ -2870,6 +2880,41 @@ function speakText(text, btnId, rate) {
       run(0);
     }
   } catch (e) { ttsFailed(); }
+}
+
+// Diagnostyka syntezy mowy: pokazuje, co dokładnie robi przeglądarka.
+function runSoundTest(useVoice) {
+  const el = document.getElementById("soundTestLog");
+  const lines = [];
+  const log = (t) => { lines.push(t); el.textContent = lines.join("\n"); };
+  const ua = navigator.userAgent;
+  const br = (ua.match(/(Edg|OPR|Firefox|Chrome)\/[\d.]+/) || ua.match(/Version\/[\d.]+.*Safari/) || ["nieznana"])[0];
+  log("Przeglądarka: " + br + (ON_CLAUDE ? " · widok claude.ai" : " · zwykła strona"));
+  const synth = window.speechSynthesis;
+  if (!synth || typeof SpeechSynthesisUtterance === "undefined") { log("Synteza mowy: NIEDOSTĘPNA w tej przeglądarce"); return; }
+  const vs = synth.getVoices() || [];
+  const en = vs.filter((v) => /^en([-_]|$)/i.test(v.lang));
+  log("Głosy: " + vs.length + " (angielskie: " + en.length + ", w tym lokalne: " + en.filter((v) => v.localService).length + ")");
+  const v = useVoice ? pickEnglishVoice(false) : null;
+  log("Głos testu: " + (v ? v.name + " · " + v.lang + " · " + (v.localService ? "lokalny" : "sieciowy") : "domyślny przeglądarki"));
+  log("Stan przed: mówi=" + synth.speaking + ", w kolejce=" + synth.pending + ", pauza=" + synth.paused);
+  const u = new SpeechSynthesisUtterance("Hello! This is a sound test.");
+  if (v) { u.voice = v; u.lang = v.lang; } else u.lang = "en-US";
+  u.volume = 1;
+  let started = false;
+  const t0 = Date.now();
+  u.onstart = () => { started = true; log("▶ Start odtwarzania po " + (Date.now() - t0) + " ms"); };
+  u.onend = () => log("■ Koniec po " + (Date.now() - t0) + " ms" + (started ? "" : " (bez startu!)"));
+  u.onerror = (e) => log("✗ Błąd: " + (e && e.error));
+  ttsCurrent = u;
+  try { synth.cancel(); } catch (e) {}
+  setTimeout(() => {
+    try { synth.resume(); synth.speak(u); log("Wysłano zdanie do odtworzenia…"); }
+    catch (e) { log("✗ Wyjątek: " + e.message); }
+    setTimeout(() => {
+      if (!started) log("Po 3 s odtwarzanie się nie zaczęło. Stan: mówi=" + synth.speaking + ", w kolejce=" + synth.pending + ", pauza=" + synth.paused);
+    }, 3000);
+  }, 100);
 }
 
 // Odczytuje poprawną odpowiedź na głos.
@@ -5028,6 +5073,12 @@ document.addEventListener("DOMContentLoaded", () => {
     scheduleCloudSave();
   });
   document.getElementById("copyReport").addEventListener("click", copyReport);
+  document.getElementById("soundTestBtn").addEventListener("click", () => runSoundTest(true));
+  document.getElementById("soundTestDefault").addEventListener("click", () => runSoundTest(false));
+  if (location.hash === "#test-dzwieku") {
+    showSection("stats");
+    setTimeout(() => document.getElementById("soundTestPanel").scrollIntoView(), 50);
+  }
   document.getElementById("importBtn").addEventListener("click", importReport);
   document.getElementById("doneHome").addEventListener("click", () => {
     switchView("home");
