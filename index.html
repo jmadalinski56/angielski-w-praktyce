@@ -2767,42 +2767,73 @@ if (window.speechSynthesis) {
 }
 
 // Wybiera możliwie naturalny głos ANGIELSKI (nigdy polski dla angielskiego tekstu).
-function pickEnglishVoice() {
-  const vs = (ttsVoices && ttsVoices.length) ? ttsVoices : (window.speechSynthesis.getVoices() || []);
-  const en = vs.filter((v) => /^en([-_]|$)/i.test(v.lang));
+// Najpierw głosy lokalne (systemowe): sieciowe głosy Google potrafią milczeć bez błędu.
+function pickEnglishVoice(localOnly) {
+  const synth = window.speechSynthesis;
+  const vs = (ttsVoices && ttsVoices.length) ? ttsVoices : ((synth && synth.getVoices()) || []);
+  let en = vs.filter((v) => /^en([-_]|$)/i.test(v.lang));
+  if (localOnly) en = en.filter((v) => v.localService);
   if (!en.length) return null;
   const prefer = [
-    "Google US English", "Google UK English Female", "Google UK English Male",
-    "Samantha", "Karen", "Daniel", "Moira", "Tessa",
-    "Microsoft Aria", "Microsoft Jenny", "Microsoft Zira", "Microsoft David", "Microsoft Guy"
+    "Samantha", "Daniel", "Karen", "Moira", "Tessa", "Alex",
+    "Microsoft Aria", "Microsoft Jenny", "Microsoft Zira", "Microsoft David", "Microsoft Guy",
+    "Google US English", "Google UK English Female", "Google UK English Male"
   ];
-  for (const name of prefer) {
-    const m = en.find((v) => v.name === name || v.name.indexOf(name) !== -1);
-    if (m) return m;
+  const local = en.filter((v) => v.localService);
+  for (const pool of [local, en]) {
+    for (const name of prefer) {
+      const m = pool.find((v) => v.name === name || v.name.indexOf(name) !== -1);
+      if (m) return m;
+    }
   }
-  return en.find((v) => /en[-_]us/i.test(v.lang)) || en.find((v) => /en[-_]gb/i.test(v.lang)) || en[0];
+  const byLang = (pool) => pool.find((v) => /en[-_]us/i.test(v.lang)) || pool.find((v) => /en[-_]gb/i.test(v.lang)) || pool[0];
+  return byLang(local.length ? local : en);
 }
 
-// Odczytuje podany tekst na głos (wbudowana synteza mowy przeglądarki).
-function playAudio(text) {
+// Wspólne odtwarzanie tekstu (synteza mowy przeglądarki) z obejściem błędów Chrome:
+// cancel() tuż przed speak() gubi wypowiedź, wstrzymana kolejka milczy,
+// a nieużywany obiekt wypowiedzi bywa usuwany z pamięci przed odtworzeniem.
+let ttsCurrent = null;
+function speakText(text, btnId, rate) {
   const synth = window.speechSynthesis;
-  if (!synth) return;
-  try {
-    synth.cancel();
+  if (!synth || !text) return;
+  const btn = btnId ? document.getElementById(btnId) : null;
+  const run = (attempt) => {
+    let started = false;
     const u = new SpeechSynthesisUtterance(text);
-    const voice = pickEnglishVoice();
-    if (voice) { u.voice = voice; u.lang = voice.lang; }   // wymuś angielski głos
-    else { u.lang = "en-US"; }
-    u.rate = 0.95;
+    const voice = attempt === 0 ? pickEnglishVoice(false) : pickEnglishVoice(true);
+    if (voice) { u.voice = voice; u.lang = voice.lang; } else { u.lang = "en-US"; }
+    u.rate = rate || 0.95;
     u.pitch = 1;
-    const btn = document.getElementById("listenBtn");
-    if (btn) {
-      u.onstart = () => btn.classList.add("speaking");
-      u.onend = () => btn.classList.remove("speaking");
-      u.onerror = () => btn.classList.remove("speaking");
-    }
+    u.volume = 1;
+    u.onstart = () => { started = true; if (btn) btn.classList.add("speaking"); };
+    u.onend = () => { if (btn) btn.classList.remove("speaking"); };
+    u.onerror = (e) => {
+      if (btn) btn.classList.remove("speaking");
+      const err = e && e.error;
+      if (attempt === 0 && err !== "interrupted" && err !== "canceled") run(1);   // spróbuj głosem lokalnym
+    };
+    ttsCurrent = u;   // trzymaj referencję do końca odtwarzania
+    try { synth.resume(); } catch (e) {}
     synth.speak(u);
+    // jeśli po chwili nic nie ruszyło, spróbuj jeszcze raz innym (lokalnym) głosem
+    if (attempt === 0) setTimeout(() => {
+      if (!started && ttsCurrent === u && !synth.speaking) { try { synth.cancel(); } catch (e) {} run(1); }
+    }, 1500);
+  };
+  try {
+    if (synth.speaking || synth.pending) {
+      synth.cancel();
+      setTimeout(() => run(0), 80);   // krótka przerwa po cancel(), inaczej Chrome gubi wypowiedź
+    } else {
+      run(0);
+    }
   } catch (e) { /* synteza niedostępna — ignoruj */ }
+}
+
+// Odczytuje poprawną odpowiedź na głos.
+function playAudio(text) {
+  speakText(text, "listenBtn", 0.95);
 }
 
 function renderFeedback(isCorrect, drill, correctTokens, userTokens, userRaw, opts) {
@@ -3464,22 +3495,7 @@ function normWord(s) {
 
 // Odczyt słowa na głos (angielski głos), z podświetleniem wskazanego przycisku.
 function playWord(text, btnId) {
-  const synth = window.speechSynthesis;
-  if (!synth) return;
-  try {
-    synth.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    const v = pickEnglishVoice();
-    if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = "en-US"; }
-    u.rate = 0.9;
-    const btn = btnId && document.getElementById(btnId);
-    if (btn) {
-      u.onstart = () => btn.classList.add("speaking");
-      u.onend = () => btn.classList.remove("speaking");
-      u.onerror = () => btn.classList.remove("speaking");
-    }
-    synth.speak(u);
-  } catch (e) {}
+  speakText(text, btnId, 0.9);
 }
 
 // Pokazuje wybór kierunku tylko dla fiszek.
