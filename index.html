@@ -2794,32 +2794,22 @@ if (window.speechSynthesis) {
 }
 
 // Wybiera możliwie naturalny głos ANGIELSKI (nigdy polski dla angielskiego tekstu).
-// Najpierw głosy lokalne (systemowe): sieciowe głosy Google potrafią milczeć bez błędu.
-function pickEnglishVoice(localOnly) {
-  const synth = window.speechSynthesis;
-  const vs = (ttsVoices && ttsVoices.length) ? ttsVoices : ((synth && synth.getVoices()) || []);
-  let en = vs.filter((v) => /^en([-_]|$)/i.test(v.lang));
-  if (localOnly) en = en.filter((v) => v.localService);
+function pickEnglishVoice() {
+  const vs = (ttsVoices && ttsVoices.length) ? ttsVoices : (window.speechSynthesis.getVoices() || []);
+  const en = vs.filter((v) => /^en([-_]|$)/i.test(v.lang));
   if (!en.length) return null;
   const prefer = [
-    "Samantha", "Daniel", "Karen", "Moira", "Tessa", "Alex",
-    "Microsoft Aria", "Microsoft Jenny", "Microsoft Zira", "Microsoft David", "Microsoft Guy",
-    "Google US English", "Google UK English Female", "Google UK English Male"
+    "Google US English", "Google UK English Female", "Google UK English Male",
+    "Samantha", "Karen", "Daniel", "Moira", "Tessa",
+    "Microsoft Aria", "Microsoft Jenny", "Microsoft Zira", "Microsoft David", "Microsoft Guy"
   ];
-  const local = en.filter((v) => v.localService);
-  for (const pool of [local, en]) {
-    for (const name of prefer) {
-      const m = pool.find((v) => v.name === name || v.name.indexOf(name) !== -1);
-      if (m) return m;
-    }
+  for (const name of prefer) {
+    const m = en.find((v) => v.name === name || v.name.indexOf(name) !== -1);
+    if (m) return m;
   }
-  const byLang = (pool) => pool.find((v) => /en[-_]us/i.test(v.lang)) || pool.find((v) => /en[-_]gb/i.test(v.lang)) || pool[0];
-  return byLang(local.length ? local : en);
+  return en.find((v) => /en[-_]us/i.test(v.lang)) || en.find((v) => /en[-_]gb/i.test(v.lang)) || en[0];
 }
 
-// Wspólne odtwarzanie tekstu (synteza mowy przeglądarki) z obejściem błędów Chrome:
-// cancel() tuż przed speak() gubi wypowiedź, wstrzymana kolejka milczy,
-// a nieużywany obiekt wypowiedzi bywa usuwany z pamięci przed odtworzeniem.
 let ttsCurrent = null;
 
 // Komunikat, gdy przeglądarka nie odtworzy dźwięku (np. wyciszony widok artefaktu).
@@ -2839,46 +2829,30 @@ function ttsFailed() {
   clearTimeout(ttsFailed.timer);
   ttsFailed.timer = setTimeout(() => { t.hidden = true; }, 7000);
 }
+// Odtwarzanie tekstu — ten sam sposób co w pierwotnej, działającej wersji (cancel + speak),
+// plus referencja do wypowiedzi (żeby nie zniknęła z pamięci) i komunikat przy prawdziwym błędzie.
 function speakText(text, btnId, rate) {
   const synth = window.speechSynthesis;
   if (!text) return;
   if (!synth || typeof SpeechSynthesisUtterance === "undefined") { ttsFailed(); return; }
-  const btn = btnId ? document.getElementById(btnId) : null;
-  const run = (attempt) => {
-    let started = false;
+  try {
+    synth.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    const voice = attempt === 0 ? pickEnglishVoice(false) : pickEnglishVoice(true);
-    if (voice) { u.voice = voice; u.lang = voice.lang; } else { u.lang = "en-US"; }
+    const voice = pickEnglishVoice();
+    if (voice) { u.voice = voice; u.lang = voice.lang; }   // wymuś angielski głos
+    else { u.lang = "en-US"; }
     u.rate = rate || 0.95;
     u.pitch = 1;
-    u.volume = 1;
-    u.onstart = () => { started = true; if (btn) btn.classList.add("speaking"); };
+    const btn = btnId ? document.getElementById(btnId) : null;
+    u.onstart = () => { if (btn) btn.classList.add("speaking"); };
     u.onend = () => { if (btn) btn.classList.remove("speaking"); };
     u.onerror = (e) => {
       if (btn) btn.classList.remove("speaking");
       const err = e && e.error;
-      if (err === "interrupted" || err === "canceled") return;
-      if (attempt === 0) run(1);   // spróbuj głosem lokalnym
-      else ttsFailed();
+      if (err && err !== "interrupted" && err !== "canceled") ttsFailed();
     };
-    ttsCurrent = u;   // trzymaj referencję do końca odtwarzania
-    try { synth.resume(); } catch (e) {}
+    ttsCurrent = u;
     synth.speak(u);
-    // jeśli po chwili nic nie ruszyło, spróbuj jeszcze raz innym (lokalnym) głosem
-    if (attempt === 0) setTimeout(() => {
-      if (!started && ttsCurrent === u && !synth.speaking) { try { synth.cancel(); } catch (e) {} run(1); }
-    }, 1500);
-    else setTimeout(() => {
-      if (!started && ttsCurrent === u && !synth.speaking) ttsFailed();
-    }, 2000);
-  };
-  try {
-    if (synth.speaking || synth.pending) {
-      synth.cancel();
-      setTimeout(() => run(0), 80);   // krótka przerwa po cancel(), inaczej Chrome gubi wypowiedź
-    } else {
-      run(0);
-    }
   } catch (e) { ttsFailed(); }
 }
 
@@ -2895,7 +2869,7 @@ function runSoundTest(useVoice) {
   const vs = synth.getVoices() || [];
   const en = vs.filter((v) => /^en([-_]|$)/i.test(v.lang));
   log("Głosy: " + vs.length + " (angielskie: " + en.length + ", w tym lokalne: " + en.filter((v) => v.localService).length + ")");
-  const v = useVoice ? pickEnglishVoice(false) : null;
+  const v = useVoice ? pickEnglishVoice() : null;
   log("Głos testu: " + (v ? v.name + " · " + v.lang + " · " + (v.localService ? "lokalny" : "sieciowy") : "domyślny przeglądarki"));
   log("Stan przed: mówi=" + synth.speaking + ", w kolejce=" + synth.pending + ", pauza=" + synth.paused);
   const u = new SpeechSynthesisUtterance("Hello! This is a sound test.");
@@ -2907,14 +2881,11 @@ function runSoundTest(useVoice) {
   u.onend = () => log("■ Koniec po " + (Date.now() - t0) + " ms" + (started ? "" : " (bez startu!)"));
   u.onerror = (e) => log("✗ Błąd: " + (e && e.error));
   ttsCurrent = u;
-  try { synth.cancel(); } catch (e) {}
+  try { synth.cancel(); synth.speak(u); log("Wysłano zdanie do odtworzenia…"); }
+  catch (e) { log("✗ Wyjątek: " + e.message); }
   setTimeout(() => {
-    try { synth.resume(); synth.speak(u); log("Wysłano zdanie do odtworzenia…"); }
-    catch (e) { log("✗ Wyjątek: " + e.message); }
-    setTimeout(() => {
-      if (!started) log("Po 3 s odtwarzanie się nie zaczęło. Stan: mówi=" + synth.speaking + ", w kolejce=" + synth.pending + ", pauza=" + synth.paused);
-    }, 3000);
-  }, 100);
+    if (!started) log("Po 3 s odtwarzanie się nie zaczęło. Stan: mówi=" + synth.speaking + ", w kolejce=" + synth.pending + ", pauza=" + synth.paused);
+  }, 3000);
 }
 
 // Odczytuje poprawną odpowiedź na głos.
