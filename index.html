@@ -366,6 +366,11 @@ mark.bad { background: var(--bad-bg); color: var(--bad); text-decoration: line-t
 }
 .cw-del { flex: none; background: none; border: none; color: var(--muted); font-size: 1.15rem; cursor: pointer; }
 .cw-del:hover { color: var(--bad); }
+.cw-select { cursor: pointer; appearance: auto; }
+.cw-group { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 10px 2px 0; }
+.cw-group h4 { margin: 0; font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.all-card { border-color: var(--good); }
+.all-card:hover { border-color: var(--good); }
 .vex-pl { font-style: normal; color: var(--muted); font-size: 0.9em; }
 .flashcard-back .vex-pl { color: rgba(255, 255, 255, 0.78); }
 
@@ -744,11 +749,17 @@ button:focus-visible, .struct-card:focus-visible, input:focus-visible, textarea:
 
       <div class="drill-head">
         <span class="drill-level">⭐</span>
-        <h2>Moje słówka</h2>
+        <h2>Dodaj słówka</h2>
       </div>
-      <div class="drill-note">Dodaj własne słowa. Tłumaczenie i przykład wpiszesz ręcznie albo wygenerujesz automatycznie (🌐 / ✨).</div>
+      <div class="drill-note">Wybierz kategorię i dodaj słowo. Trafi do ćwiczeń tej kategorii i do „Moich słówek”.</div>
 
       <div class="card custom-form">
+        <label class="cw-label" for="cwCat">Kategoria
+          <select id="cwCat" class="word-input cw-input cw-select"></select>
+        </label>
+        <label class="cw-label" id="cwNewCatRow" hidden>Nazwa nowej kategorii
+          <input id="cwNewCat" class="word-input cw-input" type="text" maxlength="40" placeholder="np. Sport" autocomplete="off" />
+        </label>
         <label class="cw-label">Słowo po angielsku
           <input id="cwEn" class="word-input cw-input" type="text" placeholder="np. bicycle"
                  autocomplete="off" autocapitalize="off" spellcheck="false" />
@@ -3455,6 +3466,43 @@ customWords = lsJSON(VOCAB_CUSTOM_KEY, []);
 if (!Array.isArray(customWords)) customWords = [];
 function saveCustomWords() { lsSet(VOCAB_CUSTOM_KEY, JSON.stringify(customWords)); scheduleCloudSave(); }
 
+// --- Własne kategorie słówek (słowo ma pole cat: id zestawu, id własnej kategorii lub "" = bez kategorii) ---
+const VOCAB_CATS_KEY = "eng_vocab_cats_v1";
+let customCats = lsJSON(VOCAB_CATS_KEY, []);
+if (!Array.isArray(customCats)) customCats = [];
+function saveCustomCats() { lsSet(VOCAB_CATS_KEY, JSON.stringify(customCats)); scheduleCloudSave(); }
+
+function catTitle(catId) {
+  const set = VOCAB.find((s) => s.id === catId);
+  if (set) return set.title;
+  const c = customCats.find((x) => x.id === catId);
+  return c ? c.title : "Moje słówka";
+}
+
+// Słowa do ćwiczenia w kategorii: wbudowane + dodane przez ucznia.
+function wordsForCat(catId) {
+  const set = VOCAB.find((s) => s.id === catId);
+  const base = set ? set.words.map((w) => Object.assign({}, w, { setId: set.id, setTitle: set.title, level: set.level })) : [];
+  const own = customWords.filter((w) => (w.cat || "") === catId)
+    .map((w) => Object.assign({}, w, { setId: catId || "__custom__", setTitle: catTitle(catId), level: set ? set.level : "★" }));
+  return base.concat(own);
+}
+
+// Wszystkie słowa ze wszystkich kategorii (bez powtórzeń).
+function allVocabWords() {
+  const seen = new Set();
+  const out = [];
+  VOCAB.map((s) => s.id).concat(customCats.map((c) => c.id), [""]).forEach((id) => {
+    wordsForCat(id).forEach((w) => {
+      const k = normWord(w.en);
+      if (!seen.has(k)) { seen.add(k); out.push(w); }
+    });
+  });
+  return out;
+}
+
+const ALL_RANDOM = 20;
+
 // --- Automatyczne tłumaczenie / generowanie przez Claude (zdolność sample) ---
 let aiSampleFn;  // undefined = nieznane, null = niedostępne, function = gotowe
 async function getSample() {
@@ -3548,7 +3596,28 @@ function renderVocabHome() {
   });
   grid.appendChild(rc);
 
-  // karta „Moje słówka" — ćwiczenie własnych słów + zarządzanie
+  // karta „Wszystkie kategorie" — losowe słowa ze wszystkich zestawów (z własnymi)
+  const all = allVocabWords();
+  const recAll = vocabProgress.__all__;
+  const ac = document.createElement("div");
+  ac.className = "struct-card all-card";
+  ac.innerHTML = `
+    <div class="sc-top">
+      <h3>🌍 Wszystkie kategorie</h3>
+      ${recAll ? `<span class="sc-best">${recAll.best}%</span>` : `<span class="sc-new">${all.length}</span>`}
+    </div>
+    <div class="sc-note">Słowa wymieszane ze wszystkich kategorii, także Twoje. Każda runda losuje nowy zestaw.</div>
+    <div class="sc-foot">
+      <span><button class="review-clear" id="allFullBtn" type="button">Wszystkie ${all.length} naraz</button></span>
+      <span class="sc-cta">${Math.min(ALL_RANDOM, all.length)} losowych →</span>
+    </div>`;
+  ac.addEventListener("click", () => startVocab("__all__"));
+  ac.querySelector("#allFullBtn").addEventListener("click", (e) => {
+    e.stopPropagation(); startVocab("__all_full__");
+  });
+  grid.appendChild(ac);
+
+  // karta „Moje słówka" — wszystkie dodane słowa + zarządzanie
   const cc = document.createElement("div");
   cc.className = "struct-card custom-card";
   cc.innerHTML = `
@@ -3556,55 +3625,75 @@ function renderVocabHome() {
       <h3>⭐ Moje słówka</h3>
       <span class="${customWords.length ? "sc-best" : "sc-new"}">${customWords.length || "nowe"}</span>
     </div>
-    <div class="sc-note">Dodawaj własne słowa z tłumaczeniem i przykładem — ręcznie lub automatycznie.</div>
+    <div class="sc-note">Wszystkie słowa, które dodałeś, z każdej kategorii. Możesz też tworzyć własne kategorie.</div>
     <div class="sc-foot">
       <span><button class="review-clear" id="customManageBtn" type="button">➕ Dodaj / Zarządzaj</button></span>
       <span class="sc-cta">${customWords.length ? "Ćwicz →" : ""}</span>
     </div>`;
   cc.addEventListener("click", () => {
-    if (customWords.length) {
-      startVocabWith(customWords, { setId: "__custom__", title: "Moje słówka", level: "★" });
-    } else {
-      openCustomManager();
-    }
+    if (customWords.length) startVocab("__custom__");
+    else openCustomManager("");
   });
   cc.querySelector("#customManageBtn").addEventListener("click", (e) => {
-    e.stopPropagation(); openCustomManager();
+    e.stopPropagation(); openCustomManager("");
   });
   grid.appendChild(cc);
 
-  VOCAB.forEach((set) => {
-    const rec = vocabProgress[set.id];
+  // zestawy wbudowane i własne kategorie
+  const cats = VOCAB.map((s) => ({ id: s.id, title: s.title, level: s.level, builtIn: s.words.length }))
+    .concat(customCats.map((c) => ({ id: c.id, title: c.title, level: "★", builtIn: 0 })));
+  cats.forEach((cat) => {
+    const words = wordsForCat(cat.id);
+    const own = words.length - cat.builtIn;
+    const rec = vocabProgress[cat.id];
     const best = rec ? rec.best : 0;
     const card = document.createElement("div");
     card.className = "struct-card";
     card.innerHTML = `
       <div class="sc-top">
-        <h3>${escapeHtml(set.title)}</h3>
+        <h3>${escapeHtml(cat.title)}</h3>
         ${rec ? `<span class="sc-best">${best}%</span>` : `<span class="sc-new">nowe</span>`}
       </div>
-      <div class="sc-pattern">${set.level} · ${set.words.length} słówek</div>
+      <div class="sc-pattern">${escapeHtml(cat.level)} · ${words.length} ${plural(words.length, "słówko", "słówka", "słówek")}${cat.builtIn && own ? ` (w tym ${own} ${plural(own, "Twoje", "Twoje", "Twoich")})` : ""}</div>
       <div class="sc-bar"><div class="sc-bar-fill" style="width:${best}%"></div></div>
       <div class="sc-foot">
-        <span>${VOCAB_ACT_NAME[vocabActivity]}</span>
-        <span class="sc-cta">Ćwicz →</span>
+        <span><button class="review-clear add-to-cat" type="button">➕ Dodaj słowo</button> &nbsp; ${VOCAB_ACT_NAME[vocabActivity]}</span>
+        <span class="sc-cta">${words.length ? "Ćwicz →" : "Dodaj słowa →"}</span>
       </div>`;
-    card.addEventListener("click", () => startVocab(set.id));
+    card.addEventListener("click", () => {
+      if (words.length) startVocab(cat.id);
+      else openCustomManager(cat.id);
+    });
+    card.querySelector(".add-to-cat").addEventListener("click", (e) => {
+      e.stopPropagation(); openCustomManager(cat.id);
+    });
     grid.appendChild(card);
   });
 }
 
 function startVocab(setId) {
+  if (setId === "__all__" || setId === "__all_full__") {
+    const all = shuffle(allVocabWords());
+    const words = setId === "__all__" ? all.slice(0, ALL_RANDOM) : all;
+    startVocabWith(words, { setId: "__all__", title: "Wszystkie kategorie", level: "🌍", repeatId: setId });
+    return;
+  }
+  if (setId === "__custom__") {
+    const words = customWords.map((w) => Object.assign({}, w, { setId: w.cat || "__custom__", setTitle: catTitle(w.cat || "") }));
+    startVocabWith(words, { setId: "__custom__", title: "Moje słówka", level: "★" });
+    return;
+  }
   const set = VOCAB.find((s) => s.id === setId);
-  if (!set) return;
-  startVocabWith(set.words.slice(), { setId, title: set.title, level: set.level });
+  const cat = customCats.find((c) => c.id === setId);
+  if (!set && !cat) return;
+  startVocabWith(wordsForCat(setId), { setId, title: catTitle(setId), level: set ? set.level : "★" });
 }
 
 // Uruchamia sesję z dowolną listą słów (zestaw lub powtórka błędów).
 function startVocabWith(words, meta) {
   if (!words || !words.length) return;
   vocabSession = {
-    setId: meta.setId, title: meta.title, level: meta.level, review: !!meta.review,
+    setId: meta.setId, title: meta.title, level: meta.level, review: !!meta.review, repeatId: meta.repeatId || meta.setId,
     activity: vocabActivity, queue: shuffle(words.slice()), idx: 0,
     correct: 0, answered: 0, known: 0, mistakes: []
   };
@@ -3921,7 +4010,7 @@ function finishVocab() {
     : `<div class="no-mistakes">Komplet! 🎉</div>`;
 
   // zapamiętaj sesję do „Jeszcze raz" i „Powtórz błędne"
-  lastVocab = { review: s.review, setId: s.setId, title: s.title, level: s.level,
+  lastVocab = { review: s.review, setId: s.setId, repeatId: s.repeatId, title: s.title, level: s.level,
     words: s.queue.slice(), mistakes: uniq };
   const revBtn = document.getElementById("vocabDoneReview");
   if (uniq.length) { revBtn.style.display = ""; revBtn.textContent = `Powtórz błędne (${uniq.length})`; }
@@ -3936,40 +4025,93 @@ function setCwStatus(msg, cls) {
   if (el) { el.textContent = msg; el.className = "cw-status" + (cls ? " " + cls : ""); }
 }
 
-async function openCustomManager() {
+let cwCurrentCat = "";
+
+// Lista kategorii w formularzu: bez kategorii, zestawy wbudowane, własne, nowa.
+function renderCatSelect(selected) {
+  const sel = document.getElementById("cwCat");
+  sel.innerHTML = "";
+  const add = (value, label) => {
+    const o = document.createElement("option");
+    o.value = value;
+    o.textContent = label;
+    sel.appendChild(o);
+  };
+  add("", "⭐ Moje słówka (bez kategorii)");
+  VOCAB.forEach((v) => add(v.id, v.title + " (" + v.level + ")"));
+  customCats.forEach((c) => add(c.id, c.title + " (moja kategoria)"));
+  add("__new__", "➕ Nowa kategoria…");
+  sel.value = [""].concat(VOCAB.map((v) => v.id), customCats.map((c) => c.id)).includes(selected) ? selected : "";
+  document.getElementById("cwNewCatRow").hidden = sel.value !== "__new__";
+}
+
+async function openCustomManager(catId) {
+  cwCurrentCat = catId || "";
   switchView("vocab-custom");
   setCwStatus("", "");
+  renderCatSelect(cwCurrentCat);
   renderCustomList();
   const sample = await getSample();
   const btns = ["cwPlAuto", "cwExGen", "cwExPlAuto"].map((id) => document.getElementById(id));
   if (!sample) {
     btns.forEach((b) => { if (b) b.disabled = true; });
-    setCwStatus("Automatyczne tłumaczenie (🌐 / ✨) działa w wersji na claude.ai po wyrażeniu zgody. Tutaj wpisz dane ręcznie.", "");
+    setCwStatus(ON_CLAUDE
+      ? "Automatyczne tłumaczenie (🌐 / ✨) działa po wyrażeniu zgody na użycie Claude. Tutaj wpisz dane ręcznie."
+      : "Wpisz tłumaczenie i przykład ręcznie (automatyczne tłumaczenie działa tylko w wersji na claude.ai).", "");
   } else {
     btns.forEach((b) => { if (b) b.disabled = false; });
   }
+  document.getElementById("cwEn").focus();
 }
 
 function renderCustomList() {
   const list = document.getElementById("cwList");
   list.innerHTML = "";
-  if (!customWords.length) {
+  if (!customWords.length && !customCats.length) {
     list.innerHTML = `<div class="cw-empty">Brak własnych słówek — dodaj pierwsze powyżej.</div>`;
     return;
   }
-  customWords.forEach((w, i) => {
-    const item = document.createElement("div");
-    item.className = "cw-item";
-    item.innerHTML = `
-      <div class="cw-item-main">
-        <div class="cw-item-word">${escapeHtml(w.en)} <span>— ${escapeHtml(w.pl)}</span></div>
-        ${w.ex ? `<div class="cw-item-ex">${escapeHtml(w.ex)}</div>` : ""}
-      </div>
-      <button class="cw-del" type="button" aria-label="Usuń" title="Usuń">🗑</button>`;
-    item.querySelector(".cw-del").addEventListener("click", () => {
-      customWords.splice(i, 1); saveCustomWords(); renderCustomList();
+  // grupy w kolejności: bez kategorii, zestawy wbudowane, własne kategorie (także puste)
+  const order = [""].concat(VOCAB.map((v) => v.id), customCats.map((c) => c.id));
+  order.forEach((catId) => {
+    const words = customWords.map((w, i) => [w, i]).filter(([w]) => (w.cat || "") === catId);
+    const isOwnCat = customCats.some((c) => c.id === catId);
+    if (!words.length && !isOwnCat) return;
+    const head = document.createElement("div");
+    head.className = "cw-group";
+    head.innerHTML = `<h4></h4>${isOwnCat ? `<button class="review-clear" type="button">Usuń kategorię</button>` : ""}`;
+    head.querySelector("h4").textContent = catTitle(catId) + " · " + words.length;
+    if (isOwnCat) {
+      const b = head.querySelector("button");
+      b.addEventListener("click", () => {
+        if (words.length && b.dataset.sure !== "1") {
+          b.dataset.sure = "1";
+          b.textContent = "Słowa przejdą do „Moich słówek”. Kliknij ponownie";
+          return;
+        }
+        customWords.forEach((w) => { if (w.cat === catId) w.cat = ""; });
+        customCats = customCats.filter((c) => c.id !== catId);
+        delete vocabProgress[catId];
+        saveCustomWords(); saveCustomCats(); saveVocabProgress();
+        renderCatSelect(cwCurrentCat === catId ? "" : cwCurrentCat);
+        renderCustomList();
+      });
+    }
+    list.appendChild(head);
+    words.forEach(([w, i]) => {
+      const item = document.createElement("div");
+      item.className = "cw-item";
+      item.innerHTML = `
+        <div class="cw-item-main">
+          <div class="cw-item-word">${escapeHtml(w.en)} <span>— ${escapeHtml(w.pl)}</span></div>
+          ${w.ex ? `<div class="cw-item-ex">${escapeHtml(w.ex)}</div>` : ""}
+        </div>
+        <button class="cw-del" type="button" aria-label="Usuń" title="Usuń">🗑</button>`;
+      item.querySelector(".cw-del").addEventListener("click", () => {
+        customWords.splice(i, 1); saveCustomWords(); renderCustomList();
+      });
+      list.appendChild(item);
     });
-    list.appendChild(item);
   });
 }
 
@@ -3998,18 +4140,39 @@ function addCustomWord() {
   const pl = document.getElementById("cwPl").value.trim();
   const ex = document.getElementById("cwEx").value.trim();
   const exPl = document.getElementById("cwExPl").value.trim();
+  let cat = document.getElementById("cwCat").value;
   if (!en) { setCwStatus("Podaj słowo po angielsku.", "err"); return; }
-  if (!pl) { setCwStatus("Podaj polskie tłumaczenie (lub użyj 🌐).", "err"); return; }
+  if (!pl) { setCwStatus("Podaj polskie tłumaczenie" + (ON_CLAUDE ? " (lub użyj 🌐)." : "."), "err"); return; }
+  if (cat === "__new__") {
+    const name = document.getElementById("cwNewCat").value.trim().slice(0, 40);
+    if (!name) { setCwStatus("Wpisz nazwę nowej kategorii.", "err"); return; }
+    const existing = customCats.find((c) => c.title.toLowerCase() === name.toLowerCase()) ||
+      VOCAB.find((v) => v.title.toLowerCase() === name.toLowerCase());
+    if (existing) cat = existing.id;
+    else {
+      cat = "cc_" + Date.now().toString(36);
+      customCats.push({ id: cat, title: name });
+      saveCustomCats();
+    }
+    document.getElementById("cwNewCat").value = "";
+  }
   if (customWords.some((w) => w.en.toLowerCase() === en.toLowerCase())) {
-    setCwStatus("To słowo już jest na liście.", "err"); return;
+    setCwStatus("To słowo już jest na Twojej liście.", "err"); return;
+  }
+  const set = VOCAB.find((v) => v.id === cat);
+  if (set && set.words.some((w) => w.en.toLowerCase() === en.toLowerCase())) {
+    setCwStatus("To słowo już jest w kategorii „" + set.title + "”.", "err"); return;
   }
   const word = { pl, en };
+  if (cat) word.cat = cat;
   if (ex) word.ex = ex;
   if (ex && exPl) word.exPl = exPl;
   customWords.push(word);
   saveCustomWords();
   ["cwEn", "cwPl", "cwEx", "cwExPl"].forEach((id) => { document.getElementById(id).value = ""; });
-  setCwStatus("Dodano: " + en + " → " + pl, "ok");
+  cwCurrentCat = cat;
+  renderCatSelect(cat);
+  setCwStatus("Dodano do „" + catTitle(cat) + "”: " + en + " → " + pl, "ok");
   renderCustomList();
   document.getElementById("cwEn").focus();
 }
@@ -4255,7 +4418,7 @@ function cleanReport(o) {
   const vocab = {};
   const vo = o.vocab && typeof o.vocab === "object" ? o.vocab : {};
   Object.keys(vo).forEach((id) => {
-    if (!VOCAB.some((v) => v.id === id) && id !== "__custom__") return;
+    if (!VOCAB.some((v) => v.id === id) && !["__custom__", "__all__"].includes(id) && !/^cc_[a-z0-9]{1,30}$/.test(id)) return;
     const p = vo[id] || {};
     vocab[id] = { best: num(p.best, 100), attempts: num(p.attempts, 1e5) };
   });
@@ -4379,8 +4542,17 @@ function mergeState(r) {
       const word = { en: w.en.slice(0, 80), pl: w.pl.slice(0, 80) };
       if (typeof w.ex === "string" && w.ex) word.ex = w.ex.slice(0, 220);
       if (typeof w.exPl === "string" && w.exPl) word.exPl = w.exPl.slice(0, 220);
+      if (typeof w.cat === "string" && w.cat) word.cat = w.cat.slice(0, 40);
       customWords.push(word);
     });
+  }
+  if (Array.isArray(r.customCats)) {
+    r.customCats.forEach((c) => {
+      if (c && typeof c.id === "string" && typeof c.title === "string" && !customCats.some((x) => x.id === c.id)) {
+        customCats.push({ id: c.id.slice(0, 40), title: c.title.slice(0, 40) });
+      }
+    });
+    lsSet(VOCAB_CATS_KEY, JSON.stringify(customCats));
   }
   if (r.stats && r.stats.totals && num(r.stats.totals.sessions) > num(stats.totals.sessions)) {
     stats = {
@@ -4401,7 +4573,7 @@ function mergeState(r) {
 function buildState() {
   return {
     v: 1, updatedAt: Date.now(), nick: String(nick || "").slice(0, 40),
-    progress, vocabProgress, srs, customWords, stats
+    progress, vocabProgress, srs, customWords, customCats, stats
   };
 }
 
@@ -4673,7 +4845,8 @@ function renderStudentDetail(s) {
   el.hidden = false;
   const vocabRows = Object.keys(s.vocab).map((id) => {
     const set = VOCAB.find((v) => v.id === id);
-    return `<div><span>${escapeHtml(set ? set.title : "Moje słówka")}</span><span>${s.vocab[id].best}%</span></div>`;
+    const name = set ? set.title : id === "__all__" ? "Wszystkie kategorie" : id === "__custom__" ? "Moje słówka" : "Własna kategoria";
+    return `<div><span>${escapeHtml(name)}</span><span>${s.vocab[id].best}%</span></div>`;
   }).join("");
   el.innerHTML = `
     <div class="panel-head"><h3 class="dn"></h3>
@@ -4868,7 +5041,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (lastVocab.review) {
       startVocabWith(lastVocab.words, { setId: lastVocab.setId, title: lastVocab.title, level: lastVocab.level, review: true });
     } else {
-      startVocab(lastVocab.setId);
+      startVocab(lastVocab.repeatId || lastVocab.setId);
     }
   });
   document.getElementById("vocabDoneReview").addEventListener("click", () => {
@@ -4887,6 +5060,12 @@ document.addEventListener("DOMContentLoaded", () => {
     renderVocabHome();
   });
   document.getElementById("cwAdd").addEventListener("click", addCustomWord);
+  document.getElementById("cwCat").addEventListener("change", (e) => {
+    const isNew = e.target.value === "__new__";
+    document.getElementById("cwNewCatRow").hidden = !isNew;
+    if (isNew) document.getElementById("cwNewCat").focus();
+    else cwCurrentCat = e.target.value;
+  });
   document.getElementById("cwPlAuto").addEventListener("click", (e) => {
     const en = document.getElementById("cwEn").value.trim();
     if (!en) { setCwStatus("Najpierw wpisz słowo po angielsku.", "err"); return; }
