@@ -554,6 +554,7 @@ mark.bad { background: var(--bad-bg); color: var(--bad); text-decoration: line-t
   font-size: 0.9rem; line-height: 1.4; box-shadow: var(--shadow);
 }
 .sound-log { white-space: pre-wrap; margin: 6px 0 0; min-height: 0; }
+.inline-say { width: 32px; height: 32px; font-size: 0.9rem; vertical-align: middle; margin-left: 6px; }
 .danger-link { background: none; border: none; color: var(--bad); font: inherit; font-size: 0.85rem; cursor: pointer; padding: 0; text-decoration: underline; }
 button:focus-visible, .struct-card:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -2230,6 +2231,607 @@ const LEVELS = [
   }
 ];
 
+// Dodatkowe ramy zdań do każdej struktury (inne osoby, przeczenia, pytania),
+// żeby w sesji 20–40 powtórzeń zdania się nie powtarzały.
+const EXTRA_TEMPLATES = {
+  a1_tobe: [
+    { pl: "On jest {a}.", en: "He is {b}.", fills: [
+      ["wysoki", "tall"], ["bardzo miły", "very nice", ["really nice"]], ["w pracy", "at work"], ["w domu", "at home"],
+      ["lekarzem", "a doctor"], ["moim bratem", "my brother"], ["z Niemiec", "from Germany"], ["smutny", "sad"], ["zły", "angry"] ] },
+    { pl: "Nie jesteśmy {a}.", en: "We are not {b}.", fills: [
+      ["głodni", "hungry"], ["gotowi", "ready"], ["zmęczeni", "tired"], ["w domu", "at home"], ["z Anglii", "from England"],
+      ["studentami", "students"], ["zajęci", "busy"], ["spóźnieni", "late"] ] },
+    { pl: "Gdzie {a}?", en: "Where {b}?", fills: [
+      ["jest mój telefon", "is my phone"], ["są klucze", "are the keys", ["are my keys"]], ["jesteś", "are you"],
+      ["jest stacja", "is the station"], ["są dzieci", "are the children", ["are the kids"]], ["jest łazienka", "is the bathroom", ["is the toilet"]] ] }
+  ],
+  a1_have: [
+    { pl: "Nie mam {a}.", en: "I don't have {b}.", alts: ["I haven't got {b}."], fills: [
+      ["samochodu", "a car"], ["czasu", "time", ["any time"]], ["pieniędzy", "money", ["any money"]], ["parasola", "an umbrella"],
+      ["klucza", "a key", ["the key"]], ["pytań", "any questions", ["questions"]], ["rodzeństwa", "any brothers or sisters", ["siblings", "any siblings"]] ] },
+    { pl: "Czy masz {a}?", en: "Do you have {b}?", alts: ["Have you got {b}?"], fills: [
+      ["długopis", "a pen"], ["chwilę", "a minute", ["a moment"]], ["rodzeństwo", "any brothers or sisters", ["siblings", "any siblings"]],
+      ["samochód", "a car"], ["psa", "a dog"], ["plany na weekend", "any plans for the weekend", ["plans for the weekend"]], ["ładowarkę", "a charger"] ] },
+    { pl: "Ona ma {a}.", en: "She has {b}.", alts: ["She has got {b}."], fills: [
+      ["długie włosy", "long hair"], ["niebieskie oczy", "blue eyes"], ["dwóch braci", "two brothers"], ["nowy rower", "a new bike", ["a new bicycle"]],
+      ["dużo przyjaciół", "a lot of friends", ["lots of friends", "many friends"]], ["ból głowy", "a headache"], ["kota", "a cat"] ] }
+  ],
+  a1_pres_simple: [
+    { pl: "Codziennie {a}.", en: "I {b} every day.", fills: [
+      ["piję kawę", "drink coffee"], ["chodzę do pracy", "go to work", ["walk to work"]], ["czytam wiadomości", "read the news"],
+      ["uczę się angielskiego", "learn English", ["study English"]], ["gotuję obiad", "cook dinner", ["cook lunch"]],
+      ["biegam", "run", ["go running", "go jogging"]], ["sprzątam kuchnię", "clean the kitchen"], ["słucham muzyki", "listen to music"] ] },
+    { pl: "Oni {a}.", en: "They {b}.", fills: [
+      ["mieszkają w Londynie", "live in London"], ["pracują w szpitalu", "work in a hospital", ["work at a hospital"]],
+      ["nie jedzą mięsa", "don't eat meat"], ["grają w piłkę", "play football"], ["mówią po hiszpańsku", "speak Spanish"],
+      ["nie piją kawy", "don't drink coffee"], ["mają dwoje dzieci", "have two children", ["have two kids"]], ["uczą się francuskiego", "learn French", ["study French"]] ] }
+  ],
+  a1_there_is: [
+    { pl: "Czy jest tu {a}?", en: "Is there {b} here?", alts: ["Is there {b} around here?", "Is there {b} near here?"], fills: [
+      ["bank", "a bank"], ["apteka", "a pharmacy", ["a chemist"]], ["toaleta", "a toilet", ["a bathroom"]], ["parking", "a car park", ["a parking lot"]],
+      ["bankomat", "a cash machine", ["an ATM", "a cashpoint"]], ["dobra restauracja", "a good restaurant"], ["przystanek autobusowy", "a bus stop"] ] },
+    { pl: "Nie ma {a}.", en: "There is no {b}.", alts: ["There isn't any {b}."], fills: [
+      ["mleka", "milk"], ["chleba", "bread"], ["czasu", "time"], ["miejsca", "room", ["space"]], ["prądu", "electricity", ["power"]],
+      ["wody", "water"], ["internetu", "internet", ["Wi-Fi", "wifi"]] ] },
+    { pl: "W pokoju są {a}.", en: "There are {b} in the room.", fills: [
+      ["dwa łóżka", "two beds"], ["trzy krzesła", "three chairs"], ["książki", "some books", ["books"]], ["okna", "some windows", ["windows"]],
+      ["kwiaty", "some flowers", ["flowers"]], ["dwie lampy", "two lamps"] ] }
+  ],
+  a1_can: [
+    { pl: "Nie umiem {a}.", en: "I can't {b}.", fills: [
+      ["pływać", "swim"], ["gotować", "cook"], ["śpiewać", "sing"], ["tańczyć", "dance"], ["prowadzić samochodu", "drive", ["drive a car"]],
+      ["grać na pianinie", "play the piano"], ["jeździć na nartach", "ski"], ["mówić po niemiecku", "speak German"] ] },
+    { pl: "Czy mogę {a}?", en: "Can I {b}?", alts: ["May I {b}?", "Could I {b}?"], fills: [
+      ["otworzyć okno", "open the window"], ["usiąść tutaj", "sit here"], ["skorzystać z toalety", "use the toilet", ["use the bathroom"]],
+      ["zapłacić kartą", "pay by card"], ["prosić o wodę", "have some water", ["have a glass of water", "have water"]],
+      ["zadać pytanie", "ask a question"], ["wejść", "come in"] ] },
+    { pl: "Ona umie {a}.", en: "She can {b}.", fills: [
+      ["grać na skrzypcach", "play the violin"], ["mówić po włosku", "speak Italian"], ["rysować", "draw"], ["szybko biegać", "run fast"],
+      ["naprawić rower", "fix a bike", ["repair a bike"]], ["piec ciasta", "bake cakes"] ] }
+  ],
+  a1_ps_third: [
+    { pl: "Czy on {a}?", en: "Does he {b}?", fills: [
+      ["lubi sport", "like sport", ["like sports"]], ["mieszka sam", "live alone", ["live on his own"]], ["pracuje w biurze", "work in an office"],
+      ["gra na gitarze", "play the guitar"], ["ma samochód", "have a car"], ["pije herbatę", "drink tea"], ["zna angielski", "know English", ["speak English"]] ] },
+    { pl: "Mój brat {a}.", en: "My brother {b}.", fills: [
+      ["mieszka w Gdańsku", "lives in Gdansk", ["lives in Gdańsk"]], ["pracuje w banku", "works in a bank", ["works at a bank"]],
+      ["uczy się chemii", "studies chemistry"], ["wstaje o szóstej", "gets up at six", ["gets up at 6"]],
+      ["ogląda dużo filmów", "watches a lot of films", ["watches lots of films", "watches many films"]], ["nie lubi warzyw", "doesn't like vegetables"],
+      ["jeździ do pracy autobusem", "goes to work by bus"], ["często podróżuje", "often travels", ["travels often", "travels a lot"]] ] }
+  ],
+  a1_do_you: [
+    { pl: "{a}?", en: "{b}?", fills: [
+      ["Gdzie mieszkasz", "Where do you live"], ["Co robisz w weekendy", "What do you do at weekends", ["What do you do on weekends", "What do you do at the weekend"]],
+      ["Gdzie pracujesz", "Where do you work"], ["O której wstajesz", "What time do you get up", ["When do you get up"]],
+      ["Jak dojeżdżasz do pracy", "How do you get to work", ["How do you go to work", "How do you travel to work"]],
+      ["Co lubisz jeść", "What do you like to eat", ["What do you like eating"]], ["Gdzie ona pracuje", "Where does she work"],
+      ["Czym on się zajmuje", "What does he do", ["What does he do for a living"]],
+      ["Ile to kosztuje", "How much does it cost", ["How much does this cost", "How much is it", "How much is this"]],
+      ["Dlaczego uczysz się angielskiego", "Why do you learn English", ["Why do you study English", "Why are you learning English"]] ] },
+    { pl: "Czy oni {a}?", en: "Do they {b}?", fills: [
+      ["mieszkają razem", "live together"], ["mają dzieci", "have children", ["have kids", "have any children"]], ["mówią po polsku", "speak Polish"],
+      ["pracują w weekendy", "work at weekends", ["work on weekends"]], ["lubią koty", "like cats"], ["znają drogę", "know the way"] ] }
+  ],
+  a1_imperative: [
+    { pl: "{a}.", en: "{b}.", fills: [
+      ["Skręć w lewo", "Turn left"], ["Idź prosto", "Go straight on", ["Go straight ahead", "Go straight"]], ["Umyj ręce", "Wash your hands"],
+      ["Wyłącz telefon", "Turn off your phone", ["Switch off your phone", "Turn your phone off", "Switch your phone off"]],
+      ["Przeczytaj tekst", "Read the text"], ["Posłuchaj mnie", "Listen to me"], ["Zapisz to", "Write it down"], ["Bądź cicho", "Be quiet"],
+      ["Uważaj", "Be careful", ["Watch out", "Look out"]], ["Chodź tutaj", "Come here"] ] },
+    { pl: "Nie {a}, proszę.", en: "Please don't {b}.", alts: ["Don't {b}, please."], fills: [
+      ["pal tutaj", "smoke here"], ["parkuj tutaj", "park here"], ["dzwoń do mnie po dziesiątej", "call me after ten", ["phone me after ten", "call me after 10"]],
+      ["mów tak głośno", "talk so loudly", ["speak so loudly"]], ["otwieraj okien", "open the windows"], ["zostawiaj tu toreb", "leave your bags here", ["leave bags here"]] ] }
+  ],
+
+  a2_past_simple: [
+    { pl: "Wczoraj nie {a}.", en: "I didn't {b} yesterday.", alts: ["Yesterday I didn't {b}."], fills: [
+      ["pracowałem", "work"], ["oglądałem telewizji", "watch TV"], ["poszedłem na siłownię", "go to the gym"], ["jadłem śniadania", "have breakfast", ["eat breakfast"]],
+      ["dzwoniłem do niej", "call her", ["phone her"]], ["wychodziłem z domu", "go out", ["leave the house"]],
+      ["sprawdzałem poczty", "check my email", ["check my emails"]], ["uczyłem się", "study", ["learn"]] ] },
+    { pl: "W zeszłym tygodniu {a}.", en: "Last week I {b}.", alts: ["I {b} last week."], fills: [
+      ["byłem w Paryżu", "was in Paris", ["went to Paris"]], ["kupiłem nowe buty", "bought new shoes", ["bought some new shoes"]],
+      ["zgubiłem portfel", "lost my wallet"], ["spotkałem starego przyjaciela", "met an old friend"], ["napisałem test", "wrote a test", ["took a test", "did a test"]],
+      ["zacząłem nową pracę", "started a new job"], ["widziałem świetny film", "saw a great film", ["watched a great film"]], ["pomalowałem pokój", "painted my room", ["painted the room"]] ] },
+    { pl: "{a}?", en: "{b}?", fills: [
+      ["Co robiłeś w weekend", "What did you do at the weekend", ["What did you do on the weekend", "What did you do last weekend"]],
+      ["Gdzie poszedłeś wczoraj wieczorem", "Where did you go last night", ["Where did you go yesterday evening"]],
+      ["Kiedy wróciłeś", "When did you come back", ["When did you get back", "When did you return"]], ["Co kupiłeś", "What did you buy"],
+      ["Kogo spotkałeś", "Who did you meet"], ["Dlaczego wyszedłeś", "Why did you leave"], ["Jak się tu dostałeś", "How did you get here"] ] }
+  ],
+  a2_pres_cont: [
+    { pl: "Ona teraz {a}.", en: "She is {b} now.", alts: ["She is {b} at the moment.", "She is {b} right now."], fills: [
+      ["śpi", "sleeping"], ["gotuje kolację", "cooking dinner"], ["rozmawia przez telefon", "talking on the phone", ["speaking on the phone"]],
+      ["bierze prysznic", "having a shower", ["taking a shower"]], ["odrabia lekcje", "doing her homework", ["doing homework"]],
+      ["czyta gazetę", "reading a newspaper", ["reading the newspaper"]], ["jedzie do pracy", "going to work", ["driving to work"]], ["robi zakupy", "doing the shopping", ["shopping"]] ] },
+    { pl: "Co {a}?", en: "What are you {b}?", fills: [
+      ["robisz", "doing"], ["czytasz", "reading"], ["oglądasz", "watching"], ["gotujesz", "cooking"], ["piszesz", "writing"], ["jesz", "eating"] ] },
+    { pl: "W tej chwili nie {a}.", en: "I am not {b} at the moment.", alts: ["I am not {b} right now.", "I am not {b} now."], fills: [
+      ["pracuję", "working"], ["oglądam telewizji", "watching TV"], ["słucham", "listening"], ["śpię", "sleeping"], ["jem", "eating"], ["prowadzę", "driving"] ] }
+  ],
+  a2_going_to: [
+    { pl: "W przyszłym roku {a}.", en: "Next year I am going to {b}.", alts: ["I am going to {b} next year."], fills: [
+      ["przeprowadzę się do Krakowa", "move to Krakow", ["move to Kraków", "move to Cracow"]], ["nauczę się prowadzić", "learn to drive", ["learn how to drive"]],
+      ["zacznę studia", "start university", ["start studying", "go to university"]], ["kupię mieszkanie", "buy a flat", ["buy an apartment"]],
+      ["będę więcej podróżować", "travel more"], ["wezmę ślub", "get married"] ] },
+    { pl: "Czy zamierzasz {a}?", en: "Are you going to {b}?", fills: [
+      ["przyjść na imprezę", "come to the party"], ["kupić ten samochód", "buy that car", ["buy this car"]], ["do niej zadzwonić", "call her", ["phone her"]],
+      ["zostać na noc", "stay the night", ["stay overnight"]], ["zdawać egzamin", "take the exam", ["sit the exam"]], ["mu powiedzieć", "tell him"] ] },
+    { pl: "Uważaj! {a}!", en: "Be careful! You are going to {b}!", fills: [
+      ["Upadniesz", "fall", ["fall over"]], ["Upuścisz telefon", "drop your phone"], ["Wylejesz kawę", "spill the coffee", ["spill your coffee"]],
+      ["Zgubisz się", "get lost"], ["Spóźnisz się", "be late"], ["Uderzysz się w głowę", "hit your head"] ] }
+  ],
+  a2_comparative: [
+    { pl: "Mój brat jest {a} ode mnie.", en: "My brother is {b} than me.", alts: ["My brother is {b} than I am."], fills: [
+      ["wyższy", "taller"], ["starszy", "older"], ["młodszy", "younger"], ["silniejszy", "stronger"], ["szybszy", "faster"],
+      ["bardziej leniwy", "lazier"], ["mądrzejszy", "cleverer", ["smarter", "more intelligent"]], ["cięższy", "heavier"] ] },
+    { pl: "Dzisiaj jest {a} niż wczoraj.", en: "Today is {b} than yesterday.", alts: ["It is {b} today than yesterday.", "It is {b} than yesterday."], fills: [
+      ["zimniej", "colder"], ["cieplej", "warmer"], ["goręcej", "hotter"], ["bardziej wietrznie", "windier"], ["bardziej słonecznie", "sunnier"] ] },
+    { pl: "Angielski jest {a} niż chiński.", en: "English is {b} than Chinese.", fills: [
+      ["łatwiejszy", "easier"], ["bardziej przydatny", "more useful"], ["bardziej popularny", "more popular"], ["mniej trudny", "less difficult"], ["prostszy", "simpler", ["easier"]] ] }
+  ],
+  a2_some_any: [
+    { pl: "Nie mam żadnych {a}.", en: "I don't have any {b}.", alts: ["I haven't got any {b}.", "I have no {b}."], fills: [
+      ["pieniędzy", "money"], ["planów", "plans"], ["zwierząt", "pets"], ["problemów", "problems"], ["pomysłów", "ideas"], ["pytań", "questions"] ] },
+    { pl: "Chcesz trochę {a}?", en: "Would you like some {b}?", alts: ["Do you want some {b}?"], fills: [
+      ["herbaty", "tea"], ["kawy", "coffee"], ["ciasta", "cake"], ["wody", "water"], ["zupy", "soup"], ["owoców", "fruit"], ["pomocy", "help"] ] },
+    { pl: "Czy jest {a} w lodówce?", en: "Is there any {b} in the fridge?", fills: [
+      ["mleko", "milk"], ["masło", "butter"], ["ser", "cheese"], ["sok", "juice"], ["mięso", "meat"], ["jogurt", "yoghurt", ["yogurt"]] ] }
+  ],
+  a2_superlative: [
+    { pl: "To był {a} dzień w moim życiu.", en: "It was the {b} day of my life.", alts: ["That was the {b} day of my life.", "It was the {b} day in my life."], fills: [
+      ["najlepszy", "best"], ["najgorszy", "worst"], ["najszczęśliwszy", "happiest"], ["najdłuższy", "longest"],
+      ["najbardziej stresujący", "most stressful"], ["najdziwniejszy", "strangest", ["weirdest"]], ["najzimniejszy", "coldest"] ] },
+    { pl: "Kto jest {a} w twojej rodzinie?", en: "Who is the {b} in your family?", alts: ["Who is the {b} person in your family?"], fills: [
+      ["najstarszy", "oldest", ["eldest"]], ["najmłodszy", "youngest"], ["najwyższy", "tallest"], ["najzabawniejszy", "funniest"],
+      ["najbardziej pracowity", "most hard-working", ["hardest-working", "most hardworking"]], ["najmądrzejszy", "cleverest", ["smartest", "most intelligent"]] ] },
+    { pl: "To {a} film, jaki widziałem.", en: "It is the {b} film I have ever seen.", alts: ["This is the {b} film I have ever seen.", "That is the {b} film I have ever seen."], fills: [
+      ["najlepszy", "best"], ["najgorszy", "worst"], ["najśmieszniejszy", "funniest"], ["najstraszniejszy", "scariest"], ["najnudniejszy", "most boring"], ["najdłuższy", "longest"] ] }
+  ],
+  a2_will: [
+    { pl: "Myślę, że ona {a}.", en: "I think she will {b}.", fills: [
+      ["zda egzamin", "pass the exam"], ["przyjdzie", "come"], ["wygra", "win"], ["się spóźni", "be late"],
+      ["polubi ten prezent", "like this present", ["like this gift", "like the present"]], ["zostanie lekarzem", "become a doctor"], ["zadzwoni jutro", "call tomorrow", ["phone tomorrow"]] ] },
+    { pl: "Nie sądzę, że {a}.", en: "I don't think {b}.", fills: [
+      ["będzie padać", "it will rain"], ["on przyjdzie", "he will come"], ["to zadziała", "it will work"], ["oni wygrają", "they will win"],
+      ["będzie korek", "there will be traffic", ["there will be a traffic jam"]], ["zdążymy", "we will make it"] ] },
+    { pl: "Obiecuję, że {a}.", en: "I promise I will {b}.", alts: ["I promise that I will {b}."], fills: [
+      ["zadzwonię", "call you", ["phone you", "call"]], ["będę na czas", "be on time"], ["ci pomogę", "help you"], ["nikomu nie powiem", "not tell anyone", ["tell nobody"]],
+      ["oddam ci pieniądze", "give you the money back", ["pay you back", "give the money back"]], ["posprzątam", "clean up", ["tidy up"]] ] }
+  ],
+  a2_past_cont: [
+    { pl: "O ósmej wieczorem {a}.", en: "At eight in the evening I was {b}.", alts: ["At 8 pm I was {b}.", "I was {b} at eight in the evening."], fills: [
+      ["jadłem kolację", "having dinner", ["eating dinner"]], ["oglądałem mecz", "watching the match", ["watching a match", "watching the game"]],
+      ["odrabiałem lekcje", "doing my homework", ["doing homework"]], ["rozmawiałem z mamą", "talking to my mum", ["talking to my mother", "talking with my mum"]],
+      ["sprzątałem", "cleaning", ["tidying up"]], ["czytałem", "reading"] ] },
+    { pl: "Kiedy przyszedłem, oni {a}.", en: "When I arrived, they were {b}.", alts: ["When I came, they were {b}.", "When I got there, they were {b}."], fills: [
+      ["tańczyli", "dancing"], ["jedli obiad", "having lunch", ["eating lunch", "having dinner"]], ["kłócili się", "arguing"], ["grali w karty", "playing cards"],
+      ["oglądali telewizję", "watching TV"], ["spali", "sleeping"], ["śpiewali", "singing"] ] },
+    { pl: "{a}, kiedy zaczęło padać.", en: "We were {b} when it started to rain.", alts: ["We were {b} when it started raining.", "We were {b} when it began to rain."], fills: [
+      ["Spacerowaliśmy", "walking", ["going for a walk"]], ["Graliśmy w tenisa", "playing tennis"], ["Jeździliśmy na rowerach", "cycling", ["riding our bikes"]],
+      ["Siedzieliśmy w ogrodzie", "sitting in the garden"], ["Robiliśmy grilla", "having a barbecue"] ] }
+  ],
+  a2_have_to: [
+    { pl: "Czy musisz {a}?", en: "Do you have to {b}?", fills: [
+      ["pracować jutro", "work tomorrow"], ["nosić mundurek", "wear a uniform"], ["wstawać tak wcześnie", "get up so early"], ["już iść", "go now", ["leave now"]],
+      ["płacić za parking", "pay for parking"], ["uczyć się w weekend", "study at the weekend", ["study on the weekend"]] ] },
+    { pl: "On musi {a}.", en: "He has to {b}.", fills: [
+      ["dużo pracować", "work a lot", ["work hard"]], ["opiekować się bratem", "look after his brother", ["take care of his brother"]], ["nosić okulary", "wear glasses"],
+      ["jeździć do pracy pociągiem", "go to work by train", ["take the train to work"]], ["skończyć raport", "finish the report"], ["iść do dentysty", "go to the dentist"] ] },
+    { pl: "Wczoraj musiałem {a}.", en: "Yesterday I had to {b}.", alts: ["I had to {b} yesterday."], fills: [
+      ["pracować do późna", "work late"], ["wziąć taksówkę", "take a taxi"], ["czekać godzinę", "wait for an hour", ["wait an hour"]], ["zostać w domu", "stay at home", ["stay home"]],
+      ["iść do lekarza", "go to the doctor", ["see a doctor"]], ["zmienić plany", "change my plans"] ] }
+  ],
+  b1_pres_perfect: [
+    { pl: "Ona nigdy nie {a}.", en: "She has never {b}.", fills: [
+      ["była za granicą", "been abroad"], ["jechała pociągiem", "travelled by train", ["been on a train"]], ["widziała śniegu", "seen snow"],
+      ["grała w szachy", "played chess"], ["jeździła konno", "ridden a horse"], ["gotowała obiadu", "cooked dinner", ["cooked a meal"]], ["była w kinie", "been to the cinema"] ] },
+    { pl: "{a} trzy razy.", en: "I have {b} three times.", fills: [
+      ["Byłem w Rzymie", "been to Rome"], ["Czytałem tę książkę", "read this book", ["read that book"]], ["Widziałem ten film", "seen this film", ["watched this film", "seen that film"]],
+      ["Zmieniałem pracę", "changed jobs"], ["Przeprowadzałem się", "moved house", ["moved"]], ["Biegłem w maratonie", "run a marathon"] ] },
+    { pl: "Ile razy {a}?", en: "How many times have you {b}?", fills: [
+      ["byłeś w Londynie", "been to London"], ["widziałeś ten film", "seen this film", ["watched this film"]], ["leciałeś samolotem", "flown", ["been on a plane"]],
+      ["zmieniałeś pracę", "changed jobs"], ["byłeś zakochany", "been in love"] ] }
+  ],
+  b1_cond1: [
+    { pl: "Jeśli się pospieszysz, {a}.", en: "If you hurry, you will {b}.", fills: [
+      ["zdążysz na pociąg", "catch the train"], ["nie spóźnisz się", "not be late"], ["zobaczysz początek filmu", "see the beginning of the film", ["see the start of the film"]],
+      ["złapiesz autobus", "catch the bus"], ["zdążysz", "make it"], ["będziesz miał więcej czasu", "have more time"] ] },
+    { pl: "Jeśli {a}, zadzwonię do ciebie.", en: "If I {b}, I will call you.", alts: ["If I {b}, I will phone you.", "I will call you if I {b}."], fills: [
+      ["będę miał czas", "have time"], ["skończę wcześniej", "finish early", ["finish earlier"]], ["znajdę twoje klucze", "find your keys"],
+      ["będę potrzebował pomocy", "need help"], ["dostanę tę pracę", "get the job", ["get that job"]], ["się zgubię", "get lost"] ] },
+    { pl: "{a}, jeśli nie będziesz się uczyć.", en: "You will {b} if you don't study.", alts: ["If you don't study, you will {b}."], fills: [
+      ["Nie zdasz egzaminu", "not pass the exam", ["fail the exam"]], ["Będziesz miał problemy", "have problems"], ["Wszystko zapomnisz", "forget everything"],
+      ["Nie dostaniesz się na studia", "not get into university"], ["Będziesz żałować", "regret it"] ] },
+    { pl: "Co zrobisz, jeśli {a}?", en: "What will you do if {b}?", fills: [
+      ["pociąg się spóźni", "the train is late"], ["nie dostaniesz tej pracy", "you don't get the job", ["you don't get that job"]], ["będzie padać", "it rains"],
+      ["on nie przyjdzie", "he doesn't come"], ["zgubisz paszport", "you lose your passport"] ] }
+  ],
+  b1_modals: [
+    { pl: "Nie powinieneś {a}.", en: "You shouldn't {b}.", fills: [
+      ["tyle pracować", "work so much", ["work so hard"]], ["jeść tak późno", "eat so late"], ["pić tyle kawy", "drink so much coffee"], ["się martwić", "worry"],
+      ["jeździć tak szybko", "drive so fast"], ["kłamać", "lie", ["tell lies"]], ["tego mówić", "say that"] ] },
+    { pl: "Nie wolno ci {a}.", en: "You mustn't {b}.", fills: [
+      ["tu palić", "smoke here"], ["nikomu mówić", "tell anyone"], ["dotykać tego przycisku", "touch this button"], ["otwierać tych drzwi", "open this door", ["open that door"]],
+      ["się spóźnić", "be late"], ["używać telefonu na egzaminie", "use your phone in the exam", ["use your phone during the exam"]], ["parkować przed bramą", "park in front of the gate"] ] },
+    { pl: "Czy powinienem {a}?", en: "Should I {b}?", fills: [
+      ["do niego zadzwonić", "call him", ["phone him"]], ["coś przynieść", "bring something"], ["założyć garnitur", "wear a suit"], ["poczekać", "wait"],
+      ["jej powiedzieć", "tell her"], ["zarezerwować stolik", "book a table", ["reserve a table"]] ] }
+  ],
+  b1_used_to: [
+    { pl: "Kiedyś nie {a}.", en: "I didn't use to {b}.", alts: ["I used not to {b}.", "I never used to {b}."], fills: [
+      ["lubiłem warzyw", "like vegetables"], ["piłem kawy", "drink coffee"], ["czytałem książek", "read books"], ["uprawiałem sportu", "do sport", ["do any sport", "play sports"]],
+      ["wstawałem wcześnie", "get up early"], ["podróżowałem", "travel"], ["gotowałem", "cook"] ] },
+    { pl: "Czy kiedyś {a}?", en: "Did you use to {b}?", fills: [
+      ["grałeś na pianinie", "play the piano"], ["mieszkałeś na wsi", "live in the country", ["live in the countryside"]], ["miałeś psa", "have a dog"],
+      ["chodziłeś do tej szkoły", "go to this school", ["go to that school"]], ["nosiłeś okulary", "wear glasses"], ["paliłeś", "smoke"] ] },
+    { pl: "Mój dziadek kiedyś {a}.", en: "My grandfather used to {b}.", alts: ["My grandpa used to {b}."], fills: [
+      ["pracował w kopalni", "work in a mine"], ["opowiadał nam bajki", "tell us stories", ["tell us fairy tales"]], ["hodował kury", "keep chickens"],
+      ["jeździł na motocyklu", "ride a motorbike", ["ride a motorcycle"]], ["łowił ryby", "go fishing", ["fish"]], ["grał na akordeonie", "play the accordion"] ] }
+  ],
+  b1_passive: [
+    { pl: "Angielski jest {a}.", en: "English is {b}.", fills: [
+      ["używany na całym świecie", "used all over the world", ["used all around the world", "used around the world"]], ["nauczany w szkołach", "taught in schools"],
+      ["używany w wielu krajach", "spoken in many countries", ["used in many countries"]], ["wymagany w wielu firmach", "required in many companies", ["required by many companies"]] ] },
+    { pl: "Te samochody są {a}.", en: "These cars are {b}.", fills: [
+      ["produkowane w Niemczech", "made in Germany", ["produced in Germany", "manufactured in Germany"]], ["sprzedawane w całej Europie", "sold all over Europe", ["sold across Europe", "sold throughout Europe"]],
+      ["testowane każdego dnia", "tested every day"], ["myte co tydzień", "washed every week"], ["eksportowane do Chin", "exported to China"],
+      ["naprawiane w tym warsztacie", "repaired in this garage", ["fixed in this garage", "repaired at this garage"]] ] },
+    { pl: "{a}?", en: "{b}?", fills: [
+      ["Czy śniadanie jest wliczone w cenę", "Is breakfast included in the price", ["Is breakfast included"]], ["Czy napiwek jest wliczony", "Is the tip included", ["Is service included"]],
+      ["Gdzie są robione te buty", "Where are these shoes made"], ["Jak to się pisze", "How is it spelled", ["How is it spelt", "How is that spelled"]],
+      ["Kiedy są dostarczane listy", "When are the letters delivered", ["When is the post delivered", "When is the mail delivered"]],
+      ["Czy ten pokój jest sprzątany codziennie", "Is this room cleaned every day", ["Is the room cleaned every day"]] ] }
+  ],
+  b1_pp_just: [
+    { pl: "Jeszcze nie {a}.", en: "I haven't {b} yet.", fills: [
+      ["skończyłem", "finished"], ["jadłem obiadu", "had lunch", ["eaten lunch", "had dinner", "eaten dinner"]], ["widziałem tego filmu", "seen this film", ["seen that film"]],
+      ["zapłaciłem za bilety", "paid for the tickets"], ["odpowiedziałem na jej wiadomość", "replied to her message", ["answered her message"]], ["zdecydowałem", "decided"],
+      ["się spakowałem", "packed"] ] },
+    { pl: "Ona już {a}.", en: "She has already {b}.", alts: ["She has {b} already."], fills: [
+      ["wyszła", "left", ["gone"]], ["zjadła", "eaten"], ["kupiła prezent", "bought a present", ["bought a gift"]], ["skończyła pracę", "finished work"],
+      ["przeczytała tę książkę", "read this book", ["read that book"]], ["zarezerwowała hotel", "booked the hotel", ["booked a hotel"]], ["wysłała zaproszenia", "sent the invitations"] ] }
+  ],
+  b1_zero_cond: [
+    { pl: "{a}.", en: "{b}.", fills: [
+      ["Jeśli nie śpię, jestem zmęczony", "If I don't sleep, I am tired", ["If I don't sleep, I get tired", "When I don't sleep, I am tired"]],
+      ["Jeśli woda osiąga sto stopni, wrze", "If water reaches a hundred degrees, it boils", ["If water reaches 100 degrees, it boils", "When water reaches 100 degrees, it boils"]],
+      ["Jeśli jem za dużo, boli mnie brzuch", "If I eat too much, I get a stomach ache", ["If I eat too much, my stomach hurts", "When I eat too much, my stomach hurts"]],
+      ["Jeśli pada, jeździmy autobusem", "If it rains, we take the bus", ["If it rains, we go by bus", "When it rains, we take the bus"]],
+      ["Jeśli dotkniesz ognia, oparzysz się", "If you touch fire, you get burned", ["If you touch fire, you burn yourself", "If you touch fire, you get burnt"]],
+      ["Jeśli jest zimno, noszę czapkę", "If it is cold, I wear a hat", ["When it is cold, I wear a hat"]],
+      ["Jeśli rośliny nie mają światła, nie rosną", "If plants don't get light, they don't grow", ["If plants don't have light, they don't grow"]],
+      ["Jeśli się spóźniam, szef się denerwuje", "If I am late, my boss gets angry", ["When I am late, my boss gets angry", "If I am late, my boss gets annoyed"]],
+      ["Jeśli zostawisz mleko na słońcu, kwaśnieje", "If you leave milk in the sun, it goes sour", ["If you leave milk in the sun, it turns sour"]],
+      ["Jeśli mój pies widzi kota, szczeka", "If my dog sees a cat, it barks", ["When my dog sees a cat, it barks", "If my dog sees a cat, he barks"]],
+      ["Jeśli mam wolny dzień, długo śpię", "If I have a day off, I sleep late", ["If I have a day off, I sleep in", "When I have a day off, I sleep late"]],
+      ["Jeśli nie ma korków, dojazd trwa dziesięć minut", "If there is no traffic, the journey takes ten minutes", ["If there is no traffic, it takes ten minutes"]],
+      ["Jeśli naciśniesz ten guzik, maszyna się zatrzymuje", "If you press this button, the machine stops"],
+      ["Jeśli uczniowie się spóźniają, nauczyciel zamyka drzwi", "If students are late, the teacher closes the door", ["If the students are late, the teacher closes the door"]],
+      ["Jeśli rano piję wodę, czuję się lepiej", "If I drink water in the morning, I feel better"],
+      ["Jeśli kupisz dwa, trzeci dostajesz gratis", "If you buy two, you get the third one free", ["If you buy two, you get a third one free"]],
+      ["Jeśli źle śpię, boli mnie głowa", "If I sleep badly, I get a headache", ["If I sleep badly, my head hurts"]] ] }
+  ],
+  b1_passive_past: [
+    { pl: "Mój rower został {a}.", en: "My bike was {b}.", alts: ["My bicycle was {b}."], fills: [
+      ["skradziony wczoraj", "stolen yesterday"], ["naprawiony w zeszłym tygodniu", "repaired last week", ["fixed last week"]], ["kupiony w Niemczech", "bought in Germany"],
+      ["znaleziony w parku", "found in the park"], ["pomalowany na czerwono", "painted red"], ["sprzedany za sto złotych", "sold for a hundred zlotys", ["sold for 100 zlotys", "sold for one hundred zlotys"]] ] },
+    { pl: "{a}.", en: "{b}.", fills: [
+      ["Ta książka została napisana w 1950 roku", "This book was written in 1950"], ["Ameryka została odkryta w 1492 roku", "America was discovered in 1492"],
+      ["Most został zbudowany przez Rzymian", "The bridge was built by the Romans"], ["Spotkanie zostało odwołane", "The meeting was cancelled", ["The meeting was canceled", "The meeting was called off"]],
+      ["Złodziej został złapany", "The thief was caught"], ["Okna zostały umyte", "The windows were cleaned", ["The windows were washed"]],
+      ["Zostałem zaproszony na wesele", "I was invited to a wedding", ["I was invited to the wedding"]],
+      ["Nikt nie został ranny", "Nobody was hurt", ["No one was hurt", "Nobody was injured", "No one was injured"]], ["Lot został opóźniony", "The flight was delayed"],
+      ["Te zdjęcia zostały zrobione w Paryżu", "These photos were taken in Paris", ["These pictures were taken in Paris"]],
+      ["Obraz został sprzedany za milion dolarów", "The painting was sold for a million dollars", ["The painting was sold for one million dollars"]],
+      ["Drzwi zostały zamknięte o dziesiątej", "The door was locked at ten", ["The doors were locked at ten", "The door was closed at ten"]] ] }
+  ],
+  b1_gerund_inf: [
+    { pl: "{a}.", en: "{b}.", fills: [
+      ["Lubię czytać przed snem", "I like reading before bed", ["I like to read before bed", "I enjoy reading before bed"]], ["Przestań narzekać", "Stop complaining"],
+      ["Zapomniałem zamknąć drzwi", "I forgot to lock the door", ["I forgot to close the door"]], ["Pamiętaj, żeby kupić mleko", "Remember to buy milk", ["Remember to buy some milk"]],
+      ["Unikam jazdy w godzinach szczytu", "I avoid driving in the rush hour", ["I avoid driving during rush hour", "I avoid driving in rush hour"]],
+      ["Obiecał pomóc", "He promised to help"], ["Odmówiła odpowiedzi", "She refused to answer"], ["Nie znoszę czekać", "I can't stand waiting"],
+      ["Zgodził się przyjść", "He agreed to come"], ["Rozważam zmianę pracy", "I am considering changing jobs", ["I am thinking about changing jobs", "I am considering changing my job"]],
+      ["Udało mi się znaleźć pracę", "I managed to find a job"], ["Polecam odwiedzić Gdańsk", "I recommend visiting Gdansk", ["I recommend visiting Gdańsk"]],
+      ["Chciałbym nauczyć się grać na gitarze", "I would like to learn to play the guitar", ["I would like to learn how to play the guitar"]],
+      ["Nie mogę się doczekać wakacji", "I am looking forward to the holidays", ["I can't wait for the holidays", "I am looking forward to my holiday"]],
+      ["Ona lubi tańczyć", "She likes dancing", ["She likes to dance", "She enjoys dancing"]],
+      ["Muszę przestać jeść słodycze", "I need to stop eating sweets", ["I must stop eating sweets", "I have to stop eating sweets"]] ] }
+  ],
+  b1_might: [
+    { pl: "Możliwe, że ona {a}.", en: "She might {b}.", alts: ["She may {b}."], fills: [
+      ["się spóźni", "be late"], ["nie przyjdzie", "not come"], ["już wie", "already know", ["know already"]], ["zmieni zdanie", "change her mind"],
+      ["jest w pracy", "be at work"], ["dostanie awans", "get a promotion", ["get promoted"]], ["wyjedzie za granicę", "go abroad", ["move abroad"]] ] },
+    { pl: "Jutro może {a}.", en: "It might {b} tomorrow.", alts: ["It may {b} tomorrow."], fills: [
+      ["padać", "rain"], ["być zimno", "be cold"], ["spaść śnieg", "snow"], ["być słonecznie", "be sunny"], ["wiać", "be windy"], ["być mgła", "be foggy"] ] },
+    { pl: "Możliwe, że oni {a}.", en: "They might {b}.", alts: ["They may {b}."], fills: [
+      ["już wyszli", "have left already", ["have already left"]], ["są zmęczeni", "be tired"], ["się zgubili", "have got lost", ["have gotten lost"]],
+      ["sprzedadzą dom", "sell the house", ["sell their house"]], ["nie zdążą", "not make it"], ["wrócą jutro", "come back tomorrow", ["be back tomorrow"]] ] }
+  ],
+  b1_phrasal: [
+    { pl: "{a}.", en: "{b}.", fills: [
+      ["Wynieś śmieci", "Take out the rubbish", ["Take the rubbish out", "Take out the trash", "Take the trash out"]],
+      ["Zdejmij buty", "Take off your shoes", ["Take your shoes off"]], ["Załóż kurtkę", "Put on your jacket", ["Put your jacket on"]],
+      ["Wypełnij ten formularz", "Fill in this form", ["Fill out this form", "Fill this form in"]], ["Wyprowadziłem się w zeszłym roku", "I moved out last year"],
+      ["Samochód się zepsuł", "The car broke down"], ["Samolot wystartował o szóstej", "The plane took off at six", ["The plane took off at 6"]],
+      ["Dogaduję się z siostrą", "I get on with my sister", ["I get on well with my sister", "I get along with my sister"]],
+      ["Nie poddawaj się", "Don't give up"], ["Uspokój się", "Calm down"], ["Pospiesz się", "Hurry up"],
+      ["Sprawdź to słowo w słowniku", "Look up this word in the dictionary", ["Look this word up in the dictionary", "Look up the word in the dictionary"]],
+      ["Oni się rozstali", "They broke up", ["They split up"]], ["Czekam na ciebie", "I am waiting for you"],
+      ["Wymeldowaliśmy się o dziesiątej", "We checked out at ten", ["We checked out at 10"]], ["Odłóż telefon", "Put your phone down", ["Put down your phone", "Put your phone away"]] ] }
+  ],
+  b2_cond2: [
+    { pl: "Gdybym był tobą, {a}.", en: "If I were you, I would {b}.", alts: ["If I was you, I would {b}.", "I would {b} if I were you."], fills: [
+      ["przeprosiłbym ją", "apologise to her", ["apologize to her", "say sorry to her"]], ["przyjąłbym tę ofertę", "accept the offer", ["accept this offer", "take the offer"]],
+      ["poszedłbym do lekarza", "see a doctor", ["go to the doctor"]], ["nie kupowałbym tego", "not buy it", ["not buy that"]], ["więcej bym odpoczywał", "rest more"],
+      ["porozmawiałbym z szefem", "talk to the boss", ["talk to my boss", "speak to the boss"]], ["zmieniłbym pracę", "change jobs", ["change my job"]] ] },
+    { pl: "{a}.", en: "{b}.", fills: [
+      ["Gdybym mieszkał nad morzem, codziennie bym pływał", "If I lived by the sea, I would swim every day", ["If I lived near the sea, I would swim every day"]],
+      ["Gdybym miał samochód, pojechałbym do Włoch", "If I had a car, I would go to Italy", ["If I had a car, I would drive to Italy"]],
+      ["Gdyby ona mówiła po angielsku, dostałaby tę pracę", "If she spoke English, she would get the job", ["If she spoke English, she would get that job"]],
+      ["Gdybyśmy mieli więcej czasu, zostalibyśmy dłużej", "If we had more time, we would stay longer"],
+      ["Gdybym wygrał na loterii, kupiłbym wyspę", "If I won the lottery, I would buy an island"],
+      ["Co byś zrobił, gdybyś był niewidzialny", "What would you do if you were invisible"],
+      ["Gdyby nie padało, poszlibyśmy na spacer", "If it wasn't raining, we would go for a walk", ["If it weren't raining, we would go for a walk", "If it didn't rain, we would go for a walk"]],
+      ["Gdybym znał jego numer, zadzwoniłbym do niego", "If I knew his number, I would call him", ["If I knew his number, I would phone him"]],
+      ["Gdyby on był milszy, miałby więcej przyjaciół", "If he were nicer, he would have more friends", ["If he was nicer, he would have more friends"]],
+      ["Gdybym umiał gotować, robiłbym obiady", "If I could cook, I would make dinner", ["If I could cook, I would cook dinner", "If I knew how to cook, I would make dinner"]] ] }
+  ],
+  b2_pres_perf_cont: [
+    { pl: "{a} od rana.", en: "I have been {b} since the morning.", alts: ["I have been {b} since this morning.", "I have been {b} all morning."], fills: [
+      ["Pracuję", "working"], ["Sprzątam", "cleaning", ["tidying up"]], ["Czekam na telefon", "waiting for a call", ["waiting for a phone call"]],
+      ["Piszę ten raport", "writing this report", ["writing the report"]], ["Uczę się do egzaminu", "studying for the exam", ["revising for the exam"]],
+      ["Próbuję się do ciebie dodzwonić", "trying to call you", ["trying to phone you", "trying to reach you"]], ["Naprawiam samochód", "fixing the car", ["repairing the car"]] ] },
+    { pl: "Pada {a}.", en: "It has been raining {b}.", fills: [
+      ["od trzech dni", "for three days"], ["od rana", "since the morning", ["since this morning"]], ["cały dzień", "all day"],
+      ["od wczoraj", "since yesterday"], ["od tygodnia", "for a week"], ["od godziny", "for an hour"] ] },
+    { pl: "Jak długo {a}?", en: "How long have you been {b}?", fills: [
+      ["uczysz się angielskiego", "learning English", ["studying English"]], ["tu pracujesz", "working here"], ["czekasz", "waiting"],
+      ["mieszkasz w Warszawie", "living in Warsaw"], ["grasz na gitarze", "playing the guitar"], ["prowadzisz samochód", "driving"] ] }
+  ],
+  b2_reported: [
+    { pl: "Powiedziała mi, że {a}.", en: "She told me that she {b}.", alts: ["She told me she {b}."], fills: [
+      ["była chora", "was ill", ["was sick"]], ["nie mogła przyjść", "couldn't come"], ["zgubiła klucze", "had lost her keys", ["lost her keys"]],
+      ["zadzwoni później", "would call later", ["would phone later", "would call me later"]], ["szukała nowej pracy", "was looking for a new job"],
+      ["nigdy nie była w Polsce", "had never been to Poland"], ["musiała wyjść", "had to leave", ["had to go"]] ] },
+    { pl: "Kazał mi {a}.", en: "He told me to {b}.", fills: [
+      ["poczekać", "wait"], ["zamknąć drzwi", "close the door", ["shut the door"]], ["usiąść", "sit down"], ["zadzwonić jutro", "call tomorrow", ["phone tomorrow", "call him tomorrow"]],
+      ["przyjść wcześniej", "come earlier", ["come early"]], ["wypełnić formularz", "fill in the form", ["fill out the form"]] ] },
+    { pl: "Kazał mi nie {a}.", en: "He told me not to {b}.", fills: [
+      ["dzwonić", "call", ["phone"]], ["się martwić", "worry"], ["spóźniać się", "be late"], ["tego dotykać", "touch it", ["touch that"]], ["nikomu mówić", "tell anyone"] ] }
+  ],
+  b2_relative: [
+    { pl: "To jest książka, która {a}.", en: "This is the book which {b}.", alts: ["This is the book that {b}."], fills: [
+      ["zmieniła moje życie", "changed my life"], ["wygrała nagrodę", "won the prize", ["won an award", "won a prize"]], ["kosztowała sto złotych", "cost a hundred zlotys", ["cost 100 zlotys"]],
+      ["leżała na stole", "was on the table"], ["jest bardzo popularna", "is very popular"], ["została przetłumaczona na polski", "was translated into Polish"] ] },
+    { pl: "To jest miejsce, gdzie {a}.", en: "This is the place where {b}.", fills: [
+      ["się urodziłem", "I was born"], ["się poznaliśmy", "we met"], ["pracuję", "I work"], ["spędziłem dzieciństwo", "I spent my childhood"],
+      ["mieszkała moja babcia", "my grandmother lived", ["my grandma lived"]], ["zrobiłem to zdjęcie", "I took this photo", ["I took this picture"]] ] },
+    { pl: "To jest kobieta, której {a}.", en: "This is the woman whose {b}.", fills: [
+      ["syn jest lekarzem", "son is a doctor"], ["samochód został skradziony", "car was stolen"], ["mąż jest pilotem", "husband is a pilot"],
+      ["książkę czytam", "book I am reading"], ["dom kupiliśmy", "house we bought"] ] }
+  ],
+  b2_past_perfect: [
+    { pl: "Nie wiedziałem, że ona {a}.", en: "I didn't know that she had {b}.", alts: ["I didn't know she had {b}."], fills: [
+      ["wyszła za mąż", "got married", ["married"]], ["się przeprowadziła", "moved", ["moved house"]], ["straciła pracę", "lost her job"], ["była w Japonii", "been to Japan"],
+      ["skończyła studia", "finished university", ["graduated"]], ["sprzedała dom", "sold her house", ["sold the house"]] ] },
+    { pl: "Kiedy przyjechałem, {a}.", en: "When I arrived, {b}.", fills: [
+      ["film już się zaczął", "the film had already started", ["the film had started"]], ["wszyscy już wyszli", "everyone had already left", ["everybody had already left", "everyone had left"]],
+      ["oni już zjedli", "they had already eaten", ["they had eaten"]], ["impreza się skończyła", "the party had finished", ["the party had ended", "the party had already finished"]],
+      ["sklep już zamknęli", "the shop had already closed", ["the shop had closed"]], ["pociąg już odjechał", "the train had already left", ["the train had left"]] ] },
+    { pl: "Zanim skończyłem dwadzieścia lat, {a}.", en: "By the time I was twenty, I had {b}.", alts: ["By the time I was 20, I had {b}.", "Before I was twenty, I had {b}."], fills: [
+      ["mieszkałem w trzech krajach", "lived in three countries"], ["nauczyłem się trzech języków", "learned three languages", ["learnt three languages"]],
+      ["skończyłem szkołę", "finished school", ["left school"]], ["kupiłem pierwszy samochód", "bought my first car"], ["zwiedziłem pół świata", "seen half the world", ["travelled half the world"]] ] }
+  ],
+  b2_deduction: [
+    { pl: "Ona na pewno jest {a}.", en: "She must be {b}.", fills: [
+      ["zmęczona", "tired"], ["w domu", "at home"], ["bardzo bogata", "very rich"], ["zdenerwowana", "nervous", ["upset", "annoyed"]], ["szczęśliwa", "happy"], ["w pracy", "at work"] ] },
+    { pl: "To nie może być {a}.", en: "It can't be {b}.", alts: ["That can't be {b}."], fills: [
+      ["prawda", "true"], ["on", "him"], ["tak drogie", "so expensive", ["that expensive"]], ["takie trudne", "so difficult", ["that difficult", "so hard"]], ["już piąta", "five o'clock already", ["already five o'clock"]] ] },
+    { pl: "Oni mogli {a}.", en: "They might have {b}.", alts: ["They may have {b}.", "They could have {b}."], fills: [
+      ["zapomnieć", "forgotten"], ["pójść do kina", "gone to the cinema"], ["się zgubić", "got lost", ["gotten lost"]], ["nie dostać wiadomości", "not got the message", ["not received the message"]],
+      ["już wyjechać", "already left", ["left already"]], ["utknąć w korku", "got stuck in traffic", ["been stuck in traffic"]] ] }
+  ],
+  b2_passive_modal: [
+    { pl: "To powinno być {a}.", en: "It should be {b}.", alts: ["This should be {b}."], fills: [
+      ["skończone do jutra", "finished by tomorrow", ["done by tomorrow"]], ["zrobione wcześniej", "done earlier", ["done before"]], ["sprawdzone przez eksperta", "checked by an expert"],
+      ["wysłane dzisiaj", "sent today"], ["zabronione", "banned", ["forbidden"]], ["naprawione", "fixed", ["repaired"]] ] },
+    { pl: "Pokój musi zostać {a}.", en: "The room has to be {b}.", alts: ["The room must be {b}."], fills: [
+      ["posprzątany przed dziesiątą", "cleaned before ten", ["cleaned before 10", "tidied before ten"]], ["pomalowany", "painted"], ["przygotowany na spotkanie", "prepared for the meeting"],
+      ["zarezerwowany z wyprzedzeniem", "booked in advance", ["reserved in advance"]] ] },
+    { pl: "Tego problemu nie można {a}.", en: "This problem can't be {b}.", alts: ["This problem cannot be {b}."], fills: [
+      ["zignorować", "ignored"], ["szybko rozwiązać", "solved quickly", ["solved fast"]], ["łatwo wyjaśnić", "easily explained", ["explained easily"]], ["odłożyć na później", "put off", ["postponed"]] ] }
+  ],
+  b2_future_perf: [
+    { pl: "Zanim przyjdziesz, {a}.", en: "By the time you arrive, I will have {b}.", alts: ["By the time you come, I will have {b}.", "Before you arrive, I will have {b}."], fills: [
+      ["skończę gotować", "finished cooking"], ["posprzątam", "cleaned up", ["tidied up", "cleaned"]], ["zrobię zakupy", "done the shopping"],
+      ["napiszę raport", "written the report"], ["się spakuję", "packed"], ["wyjdę", "left", ["gone"]] ] },
+    { pl: "W przyszłym tygodniu o tej porze {a}.", en: "This time next week I will be {b}.", alts: ["I will be {b} this time next week."], fills: [
+      ["będę leżał na plaży", "lying on the beach"], ["będę zwiedzał Rzym", "sightseeing in Rome", ["visiting Rome", "exploring Rome"]],
+      ["będę pracował w nowym biurze", "working in the new office", ["working in a new office"]], ["będę pisał egzamin", "taking an exam", ["writing an exam", "taking the exam", "sitting an exam"]],
+      ["będę lecieć do Nowego Jorku", "flying to New York"], ["będę świętować urodziny", "celebrating my birthday"] ] },
+    { pl: "Do 2030 roku {a}.", en: "By 2030 {b}.", fills: [
+      ["skończę studia", "I will have finished university", ["I will have graduated"]], ["spłacimy kredyt", "we will have paid off the loan", ["we will have paid the loan off"]],
+      ["oni zbudują nowy most", "they will have built a new bridge"], ["nauczę się hiszpańskiego", "I will have learned Spanish", ["I will have learnt Spanish"]] ] }
+  ],
+  b2_reported_q: [
+    { pl: "Zapytał mnie, {a}.", en: "He asked me {b}.", fills: [
+      ["gdzie pracuję", "where I worked"], ["czy jestem głodny", "if I was hungry", ["whether I was hungry"]], ["co studiuję", "what I studied", ["what I was studying"]],
+      ["jak długo tu mieszkam", "how long I had lived here", ["how long I had been living here", "how long I lived here"]],
+      ["czy mogę mu pomóc", "if I could help him", ["whether I could help him"]], ["dlaczego płaczę", "why I was crying"], ["ile zarabiam", "how much I earned"],
+      ["czy byłem kiedyś w Anglii", "if I had ever been to England", ["whether I had ever been to England"]] ] },
+    { pl: "Chciała wiedzieć, {a}.", en: "She wanted to know {b}.", fills: [
+      ["o której zaczyna się film", "what time the film started", ["when the film started"]], ["gdzie jest dworzec", "where the station was"],
+      ["czy przyjdę na imprezę", "if I would come to the party", ["whether I would come to the party"]], ["ile kosztuje bilet", "how much the ticket cost", ["how much the ticket was"]],
+      ["kto wygrał mecz", "who had won the match", ["who won the match"]], ["dlaczego nie odpisałem", "why I hadn't replied", ["why I hadn't written back", "why I didn't reply"]] ] },
+    { pl: "Zapytali nas, {a}.", en: "They asked us {b}.", fills: [
+      ["skąd jesteśmy", "where we were from"], ["czy potrzebujemy pomocy", "if we needed help", ["whether we needed help"]],
+      ["jak długo zostaniemy", "how long we would stay", ["how long we were staying"]], ["co chcemy zjeść", "what we wanted to eat"] ] }
+  ],
+  b2_rather: [
+    { pl: "Wolałbym nie {a}.", en: "I would rather not {b}.", fills: [
+      ["mówić o pieniądzach", "talk about money"], ["wychodzić dziś wieczorem", "go out tonight", ["go out this evening"]], ["jechać samochodem", "drive", ["go by car"]],
+      ["odpowiadać", "answer"], ["ryzykować", "take the risk", ["risk it"]], ["czekać", "wait"] ] },
+    { pl: "Lepiej nie {a}.", en: "You had better not {b}.", fills: [
+      ["mów mu", "tell him"], ["jedz tego", "eat that", ["eat it"]], ["spóźniaj się znowu", "be late again"], ["parkuj tutaj", "park here"],
+      ["zapominaj paszportu", "forget your passport"], ["wydawaj wszystkich pieniędzy", "spend all your money", ["spend all the money"]] ] },
+    { pl: "Wolisz {a}?", en: "Would you rather {b}?", fills: [
+      ["zostać w domu czy wyjść", "stay at home or go out", ["stay home or go out"]], ["herbatę czy kawę", "have tea or coffee", ["drink tea or coffee"]],
+      ["jechać pociągiem czy lecieć samolotem", "go by train or by plane", ["take the train or fly", "go by train or plane"]],
+      ["mieszkać w mieście czy na wsi", "live in the city or in the country", ["live in the city or in the countryside", "live in the city or the countryside"]] ] }
+  ],
+
+  c1_cond3: [
+    { pl: "Gdybyś mi powiedział, {a}.", en: "If you had told me, I would have {b}.", alts: ["I would have {b} if you had told me."], fills: [
+      ["pomógłbym ci", "helped you"], ["przyszedłbym", "come"], ["kupiłbym ci prezent", "bought you a present", ["bought you a gift"]], ["nie martwiłbym się", "not worried"],
+      ["zarezerwowałbym stolik", "booked a table", ["reserved a table"]], ["poczekałbym", "waited"], ["nie zrobiłbym tego", "not done it", ["not done that"]], ["zostałbym dłużej", "stayed longer"] ] },
+    { pl: "{a}.", en: "{b}.", fills: [
+      ["Gdybym wstał wcześniej, nie spóźniłbym się na pociąg", "If I had got up earlier, I wouldn't have missed the train", ["If I had gotten up earlier, I wouldn't have missed the train", "If I had woken up earlier, I wouldn't have missed the train"]],
+      ["Gdyby padało, odwołalibyśmy mecz", "If it had rained, we would have cancelled the match", ["If it had rained, we would have canceled the match", "If it had rained, we would have called off the match"]],
+      ["Gdyby ona się uczyła, zdałaby egzamin", "If she had studied, she would have passed the exam"],
+      ["Gdybym nie zgubił mapy, nie zgubilibyśmy się", "If I hadn't lost the map, we wouldn't have got lost", ["If I hadn't lost the map, we wouldn't have gotten lost"]],
+      ["Gdyby nie korek, zdążylibyśmy", "If it hadn't been for the traffic, we would have made it", ["If there hadn't been traffic, we would have made it", "If there hadn't been a traffic jam, we would have made it"]],
+      ["Co byś zrobił, gdybyś spóźnił się na samolot", "What would you have done if you had missed the plane", ["What would you have done if you had missed the flight"]],
+      ["Gdybyśmy wyszli wcześniej, zobaczylibyśmy początek", "If we had left earlier, we would have seen the beginning", ["If we had left earlier, we would have seen the start"]],
+      ["Gdybym wiedział o tym wcześniej, nie podpisałbym umowy", "If I had known about it earlier, I wouldn't have signed the contract", ["If I had known about it before, I wouldn't have signed the contract", "If I had known earlier, I wouldn't have signed the contract"]],
+      ["Gdyby on był ostrożniejszy, nie miałby wypadku", "If he had been more careful, he wouldn't have had an accident", ["If he had been more careful, he wouldn't have had the accident"]],
+      ["Gdybyś zadzwonił, przyjechałbym po ciebie", "If you had called, I would have picked you up", ["If you had phoned, I would have picked you up", "If you had called, I would have come to get you"]] ] }
+  ],
+  c1_inversion: [
+    { pl: "Rzadko {a}.", en: "Rarely do I {b}.", alts: ["Seldom do I {b}."], fills: [
+      ["oglądam telewizję", "watch TV"], ["jem mięso", "eat meat"], ["chodzę do kina", "go to the cinema"], ["się spóźniam", "arrive late", ["come late", "get there late"]],
+      ["piję alkohol", "drink alcohol"], ["mam wolny weekend", "have a free weekend", ["have a weekend off"]] ] },
+    { pl: "Ani razu {a}.", en: "Not once did he {b}.", fills: [
+      ["nie przeprosił", "apologise", ["apologize", "say sorry"]], ["nie zadzwonił", "call", ["phone"]], ["nie podziękował", "say thank you", ["thank me", "thank us"]],
+      ["nie zapytał mnie o zdanie", "ask for my opinion", ["ask my opinion"]], ["się nie uśmiechnął", "smile"], ["nie pomógł", "help"] ] },
+    { pl: "W żadnym wypadku {a}.", en: "Under no circumstances should you {b}.", alts: ["On no account should you {b}."], fills: [
+      ["nie podawaj hasła", "give your password", ["share your password", "give anyone your password"]], ["nie otwieraj tej paczki", "open this parcel", ["open that parcel", "open this package"]],
+      ["nie rozmawiaj z dziennikarzami", "talk to journalists", ["speak to journalists", "talk to the press"]],
+      ["nie wyłączaj komputera", "turn off the computer", ["switch off the computer", "turn the computer off"]], ["nie zostawiaj dzieci samych", "leave the children alone", ["leave the kids alone"]] ] }
+  ],
+  c1_wish: [
+    { pl: "Żałuję, że {a}.", en: "I wish I hadn't {b}.", alts: ["I wish that I hadn't {b}.", "If only I hadn't {b}."], fills: [
+      ["to powiedziałem", "said that", ["said it"]], ["zjadłem tyle", "eaten so much"], ["sprzedałem samochód", "sold my car", ["sold the car"]],
+      ["się z nim pokłóciłem", "argued with him"], ["wydałem wszystkie pieniądze", "spent all my money", ["spent all the money"]], ["poszedłem na tę imprezę", "gone to that party", ["gone to the party"]] ] },
+    { pl: "Szkoda, że nie {a}.", en: "I wish I had {b}.", alts: ["If only I had {b}."], fills: [
+      ["uczyłem się więcej", "studied more", ["studied harder"]], ["poszedłem z wami", "gone with you", ["come with you"]], ["kupiłem tamtych butów", "bought those shoes"],
+      ["zrobiłem zdjęcia", "taken a photo", ["taken a picture", "taken photos"]], ["zapytałem o jego numer", "asked for his number", ["asked him for his number"]],
+      ["posłuchałem twojej rady", "listened to your advice", ["taken your advice", "followed your advice"]] ] },
+    { pl: "Chciałbym, żeby {a}.", en: "I wish {b}.", fills: [
+      ["przestało padać", "it would stop raining"], ["sąsiedzi byli ciszej", "my neighbours would be quieter", ["the neighbours would be quieter", "my neighbors would be quieter"]],
+      ["on przestał mi przerywać", "he would stop interrupting me"], ["ona do mnie zadzwoniła", "she would call me", ["she would phone me"]],
+      ["autobus wreszcie przyjechał", "the bus would finally come", ["the bus would come"]] ] }
+  ],
+  c1_cleft: [
+    { pl: "To, czego nie rozumiem, to {a}.", en: "What I don't understand is {b}.", fills: [
+      ["dlaczego on wyszedł", "why he left"], ["ta zasada", "this rule", ["the rule"]], ["jej decyzja", "her decision"], ["ten rachunek", "this bill", ["the bill"]],
+      ["dlaczego to jest takie drogie", "why it is so expensive"], ["jak to działa", "how it works"] ] },
+    { pl: "To {a}.", en: "It was {b}.", fills: [
+      ["Anna do ciebie dzwoniła", "Anna who called you", ["Anna that called you"]], ["w Paryżu się poznaliśmy", "in Paris that we met"],
+      ["mój brat znalazł twój portfel", "my brother who found your wallet", ["my brother that found your wallet"]], ["Tomek zepsuł drukarkę", "Tom who broke the printer", ["Tom that broke the printer"]],
+      ["z powodu pogody odwołano lot", "because of the weather that the flight was cancelled", ["because of the weather that the flight was canceled"]] ] },
+    { pl: "Jedyne, czego chcę, to {a}.", en: "All I want is {b}.", alts: ["The only thing I want is {b}."], fills: [
+      ["trochę spokoju", "some peace and quiet", ["some peace", "a bit of peace"]], ["dobra kawa", "a good coffee", ["good coffee"]], ["być szczęśliwym", "to be happy"],
+      ["twoja odpowiedź", "your answer"], ["się wyspać", "to get some sleep", ["to sleep"]] ] },
+    { pl: "To, co mnie denerwuje, to {a}.", en: "What annoys me is {b}.", fills: [
+      ["hałas", "the noise"], ["korki", "the traffic", ["traffic jams"]], ["ta reklama", "this advert", ["this advertisement", "this ad"]], ["jego zachowanie", "his behaviour", ["his behavior"]] ] }
+  ],
+  c1_causative: [
+    { pl: "Muszę {a}.", en: "I need to have my {b}.", alts: ["I need to get my {b}.", "I have to have my {b}.", "I must have my {b}."], fills: [
+      ["oddać buty do naprawy", "shoes repaired", ["shoes fixed"]], ["się ostrzyc", "hair cut"], ["oddać samochód do przeglądu", "car checked", ["car serviced"]],
+      ["zrobić zdjęcie do paszportu", "passport photo taken"], ["wymienić okna", "windows replaced"], ["oddać płaszcz do pralni", "coat cleaned", ["coat dry-cleaned"]] ] },
+    { pl: "Gdzie {a}?", en: "Where did you get your {b}?", alts: ["Where did you have your {b}?"], fills: [
+      ["się ostrzygłaś", "hair cut", ["hair done"]], ["naprawiłeś telefon", "phone fixed", ["phone repaired"]], ["wywołałeś zdjęcia", "photos printed", ["pictures printed", "photos developed"]],
+      ["zrobiłaś paznokcie", "nails done"], ["oprawiłeś ten obraz", "picture framed", ["painting framed"]] ] },
+    { pl: "W przyszłym tygodniu będziemy mieć {a}.", en: "We are having our {b} next week.", alts: ["We will have our {b} next week.", "We are getting our {b} next week."], fills: [
+      ["odnowioną kuchnię", "kitchen renovated", ["kitchen redone"]], ["pomalowany dom", "house painted"], ["zainstalowany internet", "internet installed", ["broadband installed"]],
+      ["wymieniony dach", "roof replaced"], ["dostarczone meble", "furniture delivered"] ] }
+  ],
+  c1_mixed_cond: [
+    { pl: "Gdybym nie przyjął tamtej pracy, {a}.", en: "If I hadn't taken that job, I would {b}.", alts: ["If I hadn't accepted that job, I would {b}."], fills: [
+      ["nie mieszkałbym teraz w Londynie", "not live in London now", ["not be living in London now"]], ["byłbym teraz bezrobotny", "be unemployed now", ["be out of work now"]],
+      ["miałbym teraz więcej czasu", "have more time now"], ["nie znałbym teraz mojej żony", "not know my wife now"], ["byłbym teraz szczęśliwszy", "be happier now"], ["mieszkałbym teraz z rodzicami", "live with my parents now", ["be living with my parents now"]],
+      ["nie musiałbym teraz tyle podróżować", "not have to travel so much now"] ] },
+    { pl: "Gdybym był bogaty, {a}.", en: "If I were rich, I would have {b}.", alts: ["If I was rich, I would have {b}."], fills: [
+      ["kupiłbym ten dom w zeszłym roku", "bought that house last year", ["bought this house last year"]], ["pojechałbym z wami na wakacje w lipcu", "gone on holiday with you in July"],
+      ["pomógłbym ci wtedy", "helped you then", ["helped you at that time"]], ["nie wziąłbym tamtego kredytu", "not taken that loan", ["not taken out that loan"]],
+      ["zaprosiłbym was wczoraj na kolację", "invited you to dinner yesterday"], ["dałbym ci wtedy te pieniądze", "given you the money then"] ] },
+    { pl: "{a}.", en: "{b}.", fills: [
+      ["Gdyby on nie był taki leniwy, zdałby wczoraj egzamin", "If he weren't so lazy, he would have passed the exam yesterday", ["If he wasn't so lazy, he would have passed the exam yesterday"]],
+      ["Gdybyś nie wydał wszystkich pieniędzy, mógłbyś teraz pojechać z nami", "If you hadn't spent all your money, you could come with us now", ["If you hadn't spent all your money, you could go with us now"]],
+      ["Gdybym nie zgubił telefonu, mógłbym teraz do niej zadzwonić", "If I hadn't lost my phone, I could call her now", ["If I hadn't lost my phone, I could phone her now"]],
+      ["Gdyby ona mówiła po niemiecku, dostałaby tamtą pracę", "If she spoke German, she would have got that job", ["If she spoke German, she would have gotten that job"]] ] }
+  ],
+  c1_inversion2: [
+    { pl: "{a}.", en: "{b}.", fills: [
+      ["Ona nie tylko jest mądra, ale też bardzo zabawna", "Not only is she clever, but she is also very funny", ["Not only is she clever, she is also very funny", "Not only is she smart, but she is also very funny"]],
+      ["Gdybyś potrzebował pomocy, zadzwoń", "Should you need any help, call me", ["Should you need help, call me", "Should you need any help, give me a call"]],
+      ["Gdybym wiedział, przyszedłbym wcześniej", "Had I known, I would have come earlier"],
+      ["Gdyby nie twoja pomoc, nie udałoby nam się", "Had it not been for your help, we wouldn't have succeeded", ["Had it not been for your help, we wouldn't have managed", "Had it not been for your help, we would have failed"]],
+      ["Dopiero po kolacji powiedział mi prawdę", "Only after dinner did he tell me the truth"],
+      ["Dopiero kiedy wyszedłem, zrozumiałem, co się stało", "Only when I left did I understand what had happened", ["Only when I left did I realise what had happened", "Only after I left did I understand what had happened"]],
+      ["Nigdy w życiu nie byłem tak zawstydzony", "Never in my life have I been so embarrassed", ["Never in my life had I been so embarrassed"]],
+      ["Nie mieli pojęcia, że on jest milionerem", "Little did they know that he was a millionaire", ["Little did they know he was a millionaire"]],
+      ["Był tak zmęczony, że zasnął w autobusie", "So tired was he that he fell asleep on the bus", ["So tired was he that he fell asleep in the bus"]],
+      ["Dopiero o północy wrócił do domu", "Not until midnight did he come home", ["Not until midnight did he get home", "Not until midnight did he return home"]],
+      ["W żadnym razie nie możemy się teraz poddać", "On no account can we give up now", ["Under no circumstances can we give up now"]],
+      ["Gdybyś zobaczył Tomka, pozdrów go", "Should you see Tom, say hello to him", ["Should you see Tom, say hi to him", "Should you see Tom, give him my regards"]],
+      ["Nigdzie indziej nie znajdziesz takiej pizzy", "Nowhere else will you find such pizza", ["Nowhere else will you find pizza like this", "Nowhere else will you find such a pizza"]],
+      ["Gdyby nie deszcz, zagralibyśmy mecz", "Had it not been for the rain, we would have played the match", ["Had it not rained, we would have played the match"]],
+      ["Ledwo zamknąłem oczy, obudził mnie hałas", "Hardly had I closed my eyes when a noise woke me up", ["Hardly had I closed my eyes when a noise woke me"]],
+      ["Nie tylko się zgubiliśmy, ale też skończyła nam się benzyna", "Not only did we get lost, but we also ran out of petrol", ["Not only did we get lost, we also ran out of petrol", "Not only did we get lost, but we also ran out of gas"]],
+      ["Dopiero wtedy zdałem sobie sprawę z błędu", "Only then did I realise my mistake", ["Only then did I realize my mistake"]] ] }
+  ],
+  c1_high_time: [
+    { pl: "Najwyższy czas, żebyś {a}.", en: "It is high time you {b}.", fills: [
+      ["poszedł spać", "went to bed"], ["znalazł pracę", "found a job"], ["dorósł", "grew up"], ["przeprosił", "apologised", ["apologized", "said sorry"]],
+      ["się wyprowadził", "moved out"], ["zaczął się uczyć", "started studying", ["started to study", "began studying"]], ["odpisał na jej list", "replied to her letter", ["answered her letter", "wrote back to her"]] ] },
+    { pl: "Wolałbym, żeby oni {a}.", en: "I would rather they {b}.", fills: [
+      ["przyszli wcześniej", "came earlier", ["came early"]], ["nie wiedzieli", "didn't know"], ["zostali w domu", "stayed at home", ["stayed home"]],
+      ["zapłacili gotówką", "paid in cash", ["paid cash"]], ["nie przychodzili", "didn't come"] ] },
+    { pl: "Czas, żebyśmy {a}.", en: "It is time we {b}.", fills: [
+      ["poszli", "went", ["left"]], ["coś zjedli", "ate something", ["had something to eat"]], ["się pożegnali", "said goodbye"] ] }
+  ],
+  c1_impersonal: [
+    { pl: "Uważa się, że {a}.", en: "It is thought that {b}.", alts: ["It is believed that {b}.", "It is considered that {b}."], fills: [
+      ["sport jest zdrowy", "sport is healthy", ["sport is good for you"]], ["kawa poprawia koncentrację", "coffee improves concentration"],
+      ["ceny będą rosły", "prices will keep rising", ["prices will rise", "prices will go up"]], ["ten lek jest bezpieczny", "this medicine is safe", ["this drug is safe"]],
+      ["kryzys się skończył", "the crisis is over", ["the crisis has ended"]] ] },
+    { pl: "{a}.", en: "{b}.", fills: [
+      ["Mówi się, że on był szpiegiem", "He is said to have been a spy", ["It is said that he was a spy"]],
+      ["Uważa się, że zamek zbudowano w XIII wieku", "The castle is thought to have been built in the 13th century", ["It is thought that the castle was built in the 13th century", "The castle is believed to have been built in the 13th century"]],
+      ["Podobno ona wyjechała za granicę", "She is said to have gone abroad", ["It is said that she went abroad", "She is said to have moved abroad"]],
+      ["Oczekuje się, że premier poda się do dymisji", "The prime minister is expected to resign", ["It is expected that the prime minister will resign"]],
+      ["Uważa się, że złodziej uciekł do Niemiec", "The thief is believed to have escaped to Germany", ["It is believed that the thief escaped to Germany", "The thief is thought to have fled to Germany"]],
+      ["Wiadomo, że palenie szkodzi zdrowiu", "Smoking is known to damage your health", ["It is known that smoking damages your health", "It is known that smoking is bad for your health"]],
+      ["Podaje się, że dwie osoby zostały ranne", "Two people are reported to have been injured", ["It is reported that two people were injured", "It has been reported that two people were injured"]] ] },
+    { pl: "Mówi się, że ta restauracja {a}.", en: "This restaurant is said to {b}.", fills: [
+      ["jest najlepsza w mieście", "be the best in the city", ["be the best in town"]], ["ma wspaniałe desery", "have wonderful desserts", ["have great desserts"]],
+      ["była kiedyś więzieniem", "have once been a prison", ["have been a prison once"]], ["należy do znanego aktora", "belong to a famous actor"] ] }
+  ],
+  c1_participle: [
+    { pl: "{a}, wyszedł z pokoju.", en: "{b}, he left the room.", fills: [
+      ["Nie wiedząc, co powiedzieć", "Not knowing what to say"], ["Czując się zmęczony", "Feeling tired"], ["Usłyszawszy hałas", "Having heard a noise", ["Hearing a noise"]],
+      ["Zdenerwowany pytaniem", "Annoyed by the question", ["Irritated by the question"]], ["Nie mówiąc ani słowa", "Without saying a word", ["Not saying a word"]], ["Uśmiechając się", "Smiling"] ] },
+    { pl: "{a}, poszedłem do domu.", en: "Having {b}, I went home.", fills: [
+      ["Spakowawszy walizkę", "packed my suitcase", ["packed my bag"]], ["Wyłączywszy wszystkie światła", "turned off all the lights", ["switched off all the lights"]],
+      ["Pożegnawszy się z gośćmi", "said goodbye to the guests"] ] },
+    { pl: "{a}.", en: "{b}.", fills: [
+      ["Mieszkając w Londynie, nauczyłem się angielskiego", "Living in London, I learned English", ["Living in London, I learnt English", "While living in London, I learned English"]],
+      ["Zbudowany w 1900 roku, dom wymaga remontu", "Built in 1900, the house needs renovating", ["Built in 1900, the house needs renovation"]],
+      ["Nie mając pieniędzy, nie mogliśmy pojechać", "Not having any money, we couldn't go", ["Having no money, we couldn't go", "Not having money, we couldn't go"]],
+      ["Napisana prostym językiem, książka jest łatwa do zrozumienia", "Written in simple language, the book is easy to understand"],
+      ["Przeczytawszy umowę, podpisał ją", "Having read the contract, he signed it"],
+      ["Będąc chorym, został w domu", "Being ill, he stayed at home", ["Being sick, he stayed at home", "Being ill, he stayed home"]],
+      ["Zobaczywszy policję, złodziej uciekł", "Having seen the police, the thief ran away", ["Seeing the police, the thief ran away", "On seeing the police, the thief ran away"]],
+      ["Zaskoczony wiadomością, nie wiedziałem, co powiedzieć", "Surprised by the news, I didn't know what to say"],
+      ["Skończywszy studia, wyjechała za granicę", "Having finished university, she went abroad", ["Having graduated, she went abroad", "Having finished her studies, she went abroad"]] ] }
+  ]
+};
+LEVELS.forEach((lvl) => lvl.structures.forEach((st) => {
+  (EXTRA_TEMPLATES[st.id] || []).forEach((t) => st.templates.push(t));
+}));
+
 </script>
 <script>
 // Logika: generowanie zdań z szablonów, sesja powtórzeń, sprawdzanie odpowiedzi
@@ -2905,7 +3507,7 @@ function renderFeedback(isCorrect, drill, correctTokens, userTokens, userRaw, op
     fb.className = "feedback show correct";
     fb.innerHTML =
       `<div class="fb-head">✓ ${spoken ? "Dobra wymowa!" : "Świetnie!"}</div>` +
-      `<div class="fb-line"><span class="tok">${escapeHtml(exact ? drill.en : userRaw)}</span></div>` +
+      `<div class="fb-line"><span class="tok">${escapeHtml(exact ? drill.en : userRaw)}</span> <button type="button" class="say-btn inline-say" data-say="${escapeHtml(drill.en)}" aria-label="Odsłuchaj">🔊</button></div>` +
       (exact ? "" : `<div class="ai-note">Też poprawnie. Wersja wzorcowa: ${escapeHtml(drill.en)}</div>`);
   } else {
     const ops = diffTokens(correctTokens, userTokens);
@@ -2914,7 +3516,7 @@ function renderFeedback(isCorrect, drill, correctTokens, userTokens, userRaw, op
     fb.className = "feedback show wrong";
     fb.innerHTML = `
       <div class="fb-head">✗ ${spoken ? "Wymowa niedokładna — poprawna wersja:" : "Niepoprawnie — poprawna odpowiedź:"}</div>
-      <div class="fb-answer">${escapeHtml(drill.en)}</div>
+      <div class="fb-answer">${escapeHtml(drill.en)} <button type="button" class="say-btn inline-say" data-say="${escapeHtml(drill.en)}" aria-label="Odsłuchaj">🔊</button></div>
       <div class="fb-diff">
         <div class="fb-diff-row"><span class="fb-tag">Poprawnie</span>
           <div class="fb-line">${renderCorrectLine(ops)}</div></div>
@@ -2933,6 +3535,9 @@ function renderFeedback(isCorrect, drill, correctTokens, userTokens, userRaw, op
         aiVerify(drill, userRaw, e.currentTarget, document.getElementById("aiVerdict")));
     }
   }
+
+  fb.querySelectorAll("[data-say]").forEach((b) =>
+    b.addEventListener("click", () => speakText(b.dataset.say, null, 0.95)));
 
   // przycisk odsłuchania poprawnej odpowiedzi (dla każdej odpowiedzi)
   if (window.speechSynthesis) {
@@ -3185,7 +3790,9 @@ function finishSession() {
     mErr.innerHTML = `<h4>Do powtórzenia (${unique.length}) — wrócą w „Powtórce na dziś”:</h4>` +
       unique.map((m) =>
         `<div class="mistake"><span class="m-pl">${escapeHtml(m.pl)}</span>
-         <span class="m-en">${escapeHtml(m.en)}</span></div>`).join("");
+         <span class="m-en">${escapeHtml(m.en)} <button type="button" class="say-btn inline-say" data-say="${escapeHtml(m.en)}" aria-label="Odsłuchaj">🔊</button></span></div>`).join("");
+    mErr.querySelectorAll("[data-say]").forEach((b) =>
+      b.addEventListener("click", () => speakText(b.dataset.say, null, 0.95)));
   }
 
   switchView("done");
@@ -3480,6 +4087,622 @@ const VOCAB = [
     ]
   }
 ];
+
+// Dodatkowe słowa do istniejących zestawów.
+const VOCAB_EXTRA = {
+  vs_family: [
+    { pl: "rodzice", en: "parents", ex: "My parents live in a small town." },
+    { pl: "wujek", en: "uncle", ex: "My uncle has a big farm." },
+    { pl: "ciocia", en: "aunt", ex: "Her aunt is a nurse." },
+    { pl: "kuzyn, kuzynka", en: "cousin", ex: "I often play with my cousin." },
+    { pl: "bratanek, siostrzeniec", en: "nephew", ex: "My nephew is three years old." },
+    { pl: "bratanica, siostrzenica", en: "niece", ex: "Her niece loves dancing." },
+    { pl: "wnuk", en: "grandson", ex: "Their grandson visits them every week." },
+    { pl: "wnuczka", en: "granddaughter", ex: "My granddaughter can already read." },
+    { pl: "bliźnięta", en: "twins", ex: "The twins look exactly the same." },
+    { pl: "niemowlę", en: "baby", ex: "The baby is sleeping now." },
+    { pl: "rodzina", en: "family", ex: "We have a big family." },
+    { pl: "krewni", en: "relatives", ex: "All our relatives came to the party." },
+    { pl: "chłopak (partner)", en: "boyfriend", ex: "Her boyfriend is from Spain." },
+    { pl: "dziewczyna (partnerka)", en: "girlfriend", ex: "His girlfriend works in a bank." },
+    { pl: "ślub, wesele", en: "wedding", ex: "The wedding is in June." },
+    { pl: "sąsiad", en: "neighbour", ex: "Our neighbour has a noisy dog." },
+    { pl: "przyjaciel", en: "friend", ex: "She is my best friend." },
+    { pl: "macocha", en: "stepmother", ex: "His stepmother is very kind." }
+  ],
+  vs_food: [
+    { pl: "masło", en: "butter", ex: "I put butter on my bread." },
+    { pl: "ryż", en: "rice", ex: "We often eat rice with chicken." },
+    { pl: "ziemniak", en: "potato", ex: "Peel the potatoes, please." },
+    { pl: "pomidor", en: "tomato", ex: "This tomato is very sweet." },
+    { pl: "cebula", en: "onion", ex: "Cutting onions makes me cry." },
+    { pl: "zupa", en: "soup", ex: "This soup is too hot." },
+    { pl: "marchewka", en: "carrot", ex: "Rabbits love carrots." },
+    { pl: "sok", en: "juice", ex: "I drink orange juice every morning." },
+    { pl: "herbata", en: "tea", ex: "Would you like a cup of tea?" },
+    { pl: "kawa", en: "coffee", ex: "I can't start the day without coffee." },
+    { pl: "obiad (w południe)", en: "lunch", ex: "We have lunch at one o'clock." },
+    { pl: "kolacja", en: "dinner", ex: "Dinner is ready!" },
+    { pl: "ciasto", en: "cake", ex: "She baked a chocolate cake." },
+    { pl: "pieprz", en: "pepper", ex: "Add some salt and pepper." },
+    { pl: "mąka", en: "flour", ex: "You need flour to make bread." },
+    { pl: "miód", en: "honey", ex: "I put honey in my tea." },
+    { pl: "truskawka", en: "strawberry", ex: "Strawberries are my favourite fruit." },
+    { pl: "kanapka", en: "sandwich", ex: "I made a cheese sandwich." }
+  ],
+  vs_travel: [
+    { pl: "paszport", en: "passport", ex: "Don't forget your passport." },
+    { pl: "bagaż", en: "luggage", ex: "Our luggage is in the car." },
+    { pl: "lot", en: "flight", ex: "The flight takes two hours." },
+    { pl: "opóźnienie", en: "delay", ex: "There is a delay of thirty minutes." },
+    { pl: "peron", en: "platform", ex: "The train leaves from platform four." },
+    { pl: "rozkład jazdy", en: "timetable", ex: "Check the bus timetable." },
+    { pl: "rezerwacja", en: "reservation", ex: "I have a reservation for two nights." },
+    { pl: "zwiedzanie", en: "sightseeing", ex: "We spent the day sightseeing." },
+    { pl: "turysta", en: "tourist", ex: "The city is full of tourists." },
+    { pl: "przewodnik", en: "guide", ex: "Our guide spoke perfect English." },
+    { pl: "pamiątka", en: "souvenir", ex: "I bought a souvenir for my mum." },
+    { pl: "za granicą", en: "abroad", ex: "She studied abroad for a year." },
+    { pl: "odlot, odjazd", en: "departure", ex: "Departure is at six." },
+    { pl: "przylot, przyjazd", en: "arrival", ex: "Our arrival time is 10 pm." },
+    { pl: "odprawa celna", en: "customs", ex: "We waited long at customs." },
+    { pl: "plecak", en: "backpack", ex: "My backpack is very heavy." },
+    { pl: "skrzyżowanie", en: "crossroads", ex: "Turn right at the crossroads." },
+    { pl: "korek (uliczny)", en: "traffic jam", ex: "We were stuck in a traffic jam." }
+  ],
+  vs_work: [
+    { pl: "kolega z pracy", en: "colleague", ex: "My colleague helped me with the report." },
+    { pl: "pracodawca", en: "employer", ex: "My employer pays for my training." },
+    { pl: "awans", en: "promotion", ex: "She got a promotion last month." },
+    { pl: "podwyżka", en: "pay rise", ex: "I asked my boss for a pay rise." },
+    { pl: "kariera", en: "career", ex: "He wants a career in medicine." },
+    { pl: "doświadczenie", en: "experience", ex: "Do you have any experience?" },
+    { pl: "umiejętności", en: "skills", ex: "Good communication skills are important." },
+    { pl: "nadgodziny", en: "overtime", ex: "I worked overtime yesterday." },
+    { pl: "emerytura", en: "retirement", ex: "My father is looking forward to retirement." },
+    { pl: "bezrobotny", en: "unemployed", ex: "He has been unemployed for a year." },
+    { pl: "ubiegać się (o pracę)", en: "apply", ex: "I want to apply for this job." },
+    { pl: "złożyć wypowiedzenie", en: "resign", ex: "She decided to resign." },
+    { pl: "zatrudnić", en: "hire", ex: "The company will hire ten new people." },
+    { pl: "zwolnić (z pracy)", en: "fire", ex: "They fired him for being late." },
+    { pl: "zmiana (w pracy)", en: "shift", ex: "I work the night shift." },
+    { pl: "biuro", en: "office", ex: "Our office is on the fifth floor." },
+    { pl: "firma", en: "company", ex: "He works for a big company." },
+    { pl: "CV, życiorys", en: "CV", ex: "Please send us your CV." }
+  ],
+  vs_verbs: [
+    { pl: "pożyczać (od kogoś)", en: "borrow", ex: "Can I borrow your pen?" },
+    { pl: "pożyczać (komuś)", en: "lend", ex: "Could you lend me some money?" },
+    { pl: "nieść", en: "carry", ex: "Can you carry this bag?" },
+    { pl: "wybierać", en: "choose", ex: "Choose one colour." },
+    { pl: "opisywać", en: "describe", ex: "Describe your house." },
+    { pl: "zapraszać", en: "invite", ex: "I want to invite you to my party." },
+    { pl: "przygotowywać", en: "prepare", ex: "I need to prepare for the exam." },
+    { pl: "obiecywać", en: "promise", ex: "I promise to call you." },
+    { pl: "powtarzać", en: "repeat", ex: "Could you repeat that, please?" },
+    { pl: "dzielić się", en: "share", ex: "Let's share this pizza." },
+    { pl: "próbować", en: "try", ex: "Try this soup." },
+    { pl: "czekać", en: "wait", ex: "Please wait here." },
+    { pl: "martwić się", en: "worry", ex: "Don't worry about it." },
+    { pl: "śmiać się", en: "laugh", ex: "We laughed all evening." },
+    { pl: "płakać", en: "cry", ex: "The baby is crying." },
+    { pl: "zmieniać", en: "change", ex: "I want to change my plans." },
+    { pl: "znajdować", en: "find", ex: "I can't find my keys." },
+    { pl: "gubić, tracić", en: "lose", ex: "I always lose my umbrella." }
+  ],
+  vs_adj: [
+    { pl: "tani", en: "cheap", ex: "This shop is very cheap." },
+    { pl: "zatłoczony", en: "crowded", ex: "The bus was very crowded." },
+    { pl: "zdrowy", en: "healthy", ex: "Vegetables are healthy." },
+    { pl: "leniwy", en: "lazy", ex: "My cat is very lazy." },
+    { pl: "odważny", en: "brave", ex: "The firefighter was very brave." },
+    { pl: "uprzejmy", en: "polite", ex: "Always be polite to customers." },
+    { pl: "niegrzeczny", en: "rude", ex: "It's rude to interrupt." },
+    { pl: "uczciwy", en: "honest", ex: "Please be honest with me." },
+    { pl: "nieśmiały", en: "shy", ex: "She is too shy to sing." },
+    { pl: "pewny siebie", en: "confident", ex: "He feels confident about the exam." },
+    { pl: "nudny", en: "boring", ex: "The film was boring." },
+    { pl: "ekscytujący", en: "exciting", ex: "It was an exciting match." },
+    { pl: "sławny", en: "famous", ex: "She wants to be famous." },
+    { pl: "dziwny", en: "strange", ex: "I heard a strange noise." },
+    { pl: "głośny", en: "loud", ex: "The music is too loud." },
+    { pl: "wąski", en: "narrow", ex: "The street is very narrow." },
+    { pl: "szeroki", en: "wide", ex: "The river is wide here." },
+    { pl: "ciężki", en: "heavy", ex: "This box is heavy." }
+  ],
+  vs_animals: [
+    { pl: "mysz", en: "mouse", ex: "The cat caught a mouse." },
+    { pl: "kaczka", en: "duck", ex: "Ducks are swimming on the lake." },
+    { pl: "koza", en: "goat", ex: "The goat is eating grass." },
+    { pl: "wilk", en: "wolf", ex: "Wolves live in groups." },
+    { pl: "lis", en: "fox", ex: "A fox ran across the road." },
+    { pl: "jeleń", en: "deer", ex: "We saw a deer in the forest." },
+    { pl: "wąż", en: "snake", ex: "I'm afraid of snakes." },
+    { pl: "żaba", en: "frog", ex: "A frog jumped into the pond." },
+    { pl: "pszczoła", en: "bee", ex: "Bees make honey." },
+    { pl: "motyl", en: "butterfly", ex: "A butterfly landed on the flower." },
+    { pl: "pająk", en: "spider", ex: "There is a spider in the bath." },
+    { pl: "słoń", en: "elephant", ex: "Elephants have very good memory." },
+    { pl: "małpa", en: "monkey", ex: "The monkey is eating a banana." },
+    { pl: "tygrys", en: "tiger", ex: "Tigers are dangerous." },
+    { pl: "wieloryb", en: "whale", ex: "The whale is the biggest animal." },
+    { pl: "sowa", en: "owl", ex: "Owls hunt at night." },
+    { pl: "wiewiórka", en: "squirrel", ex: "A squirrel is hiding nuts." },
+    { pl: "jeż", en: "hedgehog", ex: "We found a hedgehog in the garden." }
+  ],
+  vs_body: [
+    { pl: "twarz", en: "face", ex: "Wash your face." },
+    { pl: "szyja", en: "neck", ex: "She wore a scarf around her neck." },
+    { pl: "plecy", en: "back", ex: "My back hurts." },
+    { pl: "bark", en: "shoulder", ex: "He hurt his shoulder playing tennis." },
+    { pl: "kolano", en: "knee", ex: "I fell and hurt my knee." },
+    { pl: "palec (u ręki)", en: "finger", ex: "She cut her finger." },
+    { pl: "palec u nogi", en: "toe", ex: "I hit my toe on the door." },
+    { pl: "brzuch, żołądek", en: "stomach", ex: "My stomach hurts." },
+    { pl: "skóra", en: "skin", ex: "Use sun cream to protect your skin." },
+    { pl: "warga", en: "lip", ex: "My lips are dry." },
+    { pl: "język (w ustach)", en: "tongue", ex: "The doctor looked at my tongue." },
+    { pl: "podbródek", en: "chin", ex: "He has a scar on his chin." },
+    { pl: "łokieć", en: "elbow", ex: "Don't put your elbows on the table." },
+    { pl: "nadgarstek", en: "wrist", ex: "She wears a watch on her wrist." },
+    { pl: "krew", en: "blood", ex: "There was blood on his shirt." },
+    { pl: "kość", en: "bone", ex: "The dog is eating a bone." },
+    { pl: "mózg", en: "brain", ex: "The brain needs a lot of energy." },
+    { pl: "gardło", en: "throat", ex: "I have a sore throat." }
+  ],
+  vs_weather: [
+    { pl: "słoneczny", en: "sunny", ex: "It's a sunny day." },
+    { pl: "pochmurny", en: "cloudy", ex: "It's cloudy and grey today." },
+    { pl: "wietrzny", en: "windy", ex: "It's too windy to cycle." },
+    { pl: "deszczowy", en: "rainy", ex: "I love rainy evenings at home." },
+    { pl: "mglisty", en: "foggy", ex: "It was a foggy morning." },
+    { pl: "grzmot", en: "thunder", ex: "The dog is scared of thunder." },
+    { pl: "błyskawica", en: "lightning", ex: "Lightning hit the old tree." },
+    { pl: "tęcza", en: "rainbow", ex: "Look, a rainbow!" },
+    { pl: "temperatura", en: "temperature", ex: "The temperature will drop tonight." },
+    { pl: "prognoza", en: "forecast", ex: "The forecast says it will rain." },
+    { pl: "stopień (temperatury)", en: "degree", ex: "It's twenty degrees today." },
+    { pl: "mróz", en: "frost", ex: "There was frost on the car this morning." },
+    { pl: "mokry", en: "wet", ex: "My shoes are wet." },
+    { pl: "suchy", en: "dry", ex: "The summer was very dry." },
+    { pl: "parasol", en: "umbrella", ex: "Take an umbrella with you." },
+    { pl: "niebo", en: "sky", ex: "The sky is clear tonight." },
+    { pl: "mżawka", en: "drizzle", ex: "It's only drizzle, we can go out." },
+    { pl: "parny, wilgotny", en: "humid", ex: "The air is hot and humid." }
+  ],
+  vs_colors: [
+    { pl: "srebrny", en: "silver", ex: "She has a silver car." },
+    { pl: "beżowy", en: "beige", ex: "The walls are beige." },
+    { pl: "granatowy", en: "navy blue", ex: "He wore a navy blue suit." },
+    { pl: "ciemny", en: "dark", ex: "She has dark hair." },
+    { pl: "jasny (kolor)", en: "light", ex: "I prefer light colours." },
+    { pl: "jaskrawy", en: "bright", ex: "The jacket is bright yellow." },
+    { pl: "blady", en: "pale", ex: "You look pale. Are you OK?" },
+    { pl: "kolorowy", en: "colourful", ex: "The market is very colourful." },
+    { pl: "w paski", en: "striped", ex: "He wears a striped shirt." },
+    { pl: "w kropki", en: "spotted", ex: "She has a spotted dress." },
+    { pl: "odcień", en: "shade", ex: "I like this shade of green." },
+    { pl: "turkusowy", en: "turquoise", ex: "The sea was turquoise." },
+    { pl: "kremowy", en: "cream", ex: "The sofa is cream." },
+    { pl: "przezroczysty", en: "transparent", ex: "The bottle is transparent." }
+  ]
+};
+
+// Nowe zestawy słówek.
+const VOCAB_NEW = [
+  { id: "vs_home", title: "Dom i mieszkanie", level: "A1", words: [
+    { pl: "kuchnia", en: "kitchen", ex: "We eat breakfast in the kitchen." },
+    { pl: "sypialnia", en: "bedroom", ex: "My bedroom is small but cosy." },
+    { pl: "łazienka", en: "bathroom", ex: "The bathroom is upstairs." },
+    { pl: "salon", en: "living room", ex: "We watch TV in the living room." },
+    { pl: "okno", en: "window", ex: "Open the window, please." },
+    { pl: "drzwi", en: "door", ex: "Close the door behind you." },
+    { pl: "podłoga", en: "floor", ex: "The keys are on the floor." },
+    { pl: "ściana", en: "wall", ex: "There is a picture on the wall." },
+    { pl: "dach", en: "roof", ex: "The roof needs repairing." },
+    { pl: "ogród", en: "garden", ex: "We have a small garden." },
+    { pl: "stół", en: "table", ex: "Put the plates on the table." },
+    { pl: "krzesło", en: "chair", ex: "This chair is broken." },
+    { pl: "łóżko", en: "bed", ex: "I go to bed at eleven." },
+    { pl: "kanapa", en: "sofa", ex: "The cat is sleeping on the sofa." },
+    { pl: "szafa", en: "wardrobe", ex: "My clothes are in the wardrobe." },
+    { pl: "lodówka", en: "fridge", ex: "The milk is in the fridge." },
+    { pl: "piekarnik", en: "oven", ex: "The cake is in the oven." },
+    { pl: "prysznic", en: "shower", ex: "I take a shower every morning." },
+    { pl: "lampa", en: "lamp", ex: "Turn on the lamp." },
+    { pl: "dywan", en: "carpet", ex: "The carpet is very soft." },
+    { pl: "lustro", en: "mirror", ex: "She looked in the mirror." },
+    { pl: "schody", en: "stairs", ex: "Be careful on the stairs." },
+    { pl: "klucz", en: "key", ex: "I lost my key." },
+    { pl: "mieszkanie", en: "flat", ex: "They live in a flat in the city centre." }
+  ] },
+  { id: "vs_clothes", title: "Ubrania", level: "A1", words: [
+    { pl: "koszula", en: "shirt", ex: "He wears a white shirt to work." },
+    { pl: "koszulka", en: "T-shirt", ex: "I bought a new T-shirt." },
+    { pl: "spodnie", en: "trousers", ex: "These trousers are too long." },
+    { pl: "dżinsy", en: "jeans", ex: "I usually wear jeans." },
+    { pl: "spódnica", en: "skirt", ex: "She has a red skirt." },
+    { pl: "sukienka", en: "dress", ex: "What a beautiful dress!" },
+    { pl: "kurtka", en: "jacket", ex: "Take a jacket, it's cold." },
+    { pl: "płaszcz", en: "coat", ex: "Hang your coat here." },
+    { pl: "sweter", en: "sweater", ex: "My grandma made this sweater." },
+    { pl: "buty", en: "shoes", ex: "Take off your shoes, please." },
+    { pl: "kozaki, wysokie buty", en: "boots", ex: "I need new winter boots." },
+    { pl: "skarpetki", en: "socks", ex: "I can't find my socks." },
+    { pl: "kapelusz", en: "hat", ex: "He always wears a hat." },
+    { pl: "czapka z daszkiem", en: "cap", ex: "The boy has a blue cap." },
+    { pl: "szalik", en: "scarf", ex: "Put on your scarf." },
+    { pl: "rękawiczki", en: "gloves", ex: "My gloves are wet." },
+    { pl: "pasek", en: "belt", ex: "This belt is too tight." },
+    { pl: "krawat", en: "tie", ex: "He wore a tie to the interview." },
+    { pl: "garnitur", en: "suit", ex: "He bought a suit for the wedding." },
+    { pl: "piżama", en: "pyjamas", ex: "The children are in their pyjamas." },
+    { pl: "kieszeń", en: "pocket", ex: "The phone is in my pocket." },
+    { pl: "rozmiar", en: "size", ex: "What size are you?" },
+    { pl: "guzik", en: "button", ex: "A button is missing." },
+    { pl: "okulary", en: "glasses", ex: "I need glasses for reading." },
+    { pl: "torba", en: "bag", ex: "Her bag is on the chair." }
+  ] },
+  { id: "vs_time", title: "Czas i kalendarz", level: "A1", words: [
+    { pl: "poniedziałek", en: "Monday", ex: "I start work on Monday." },
+    { pl: "wtorek", en: "Tuesday", ex: "We have English on Tuesday." },
+    { pl: "środa", en: "Wednesday", ex: "The shop is closed on Wednesday." },
+    { pl: "czwartek", en: "Thursday", ex: "See you on Thursday." },
+    { pl: "piątek", en: "Friday", ex: "Friday is my favourite day." },
+    { pl: "sobota", en: "Saturday", ex: "We go shopping on Saturday." },
+    { pl: "niedziela", en: "Sunday", ex: "On Sunday we visit Grandma." },
+    { pl: "miesiąc", en: "month", ex: "I'm going on holiday next month." },
+    { pl: "tydzień", en: "week", ex: "I go swimming twice a week." },
+    { pl: "weekend", en: "weekend", ex: "What are you doing at the weekend?" },
+    { pl: "poranek, rano", en: "morning", ex: "I drink coffee in the morning." },
+    { pl: "wieczór", en: "evening", ex: "We watch films in the evening." },
+    { pl: "noc", en: "night", ex: "I couldn't sleep last night." },
+    { pl: "dzisiaj", en: "today", ex: "Today is my birthday." },
+    { pl: "jutro", en: "tomorrow", ex: "See you tomorrow." },
+    { pl: "wczoraj", en: "yesterday", ex: "It rained yesterday." },
+    { pl: "godzina", en: "hour", ex: "The film lasts two hours." },
+    { pl: "minuta", en: "minute", ex: "Wait a minute!" },
+    { pl: "styczeń", en: "January", ex: "January is a cold month." },
+    { pl: "lipiec", en: "July", ex: "We go to the sea in July." },
+    { pl: "grudzień", en: "December", ex: "Christmas is in December." },
+    { pl: "wiosna", en: "spring", ex: "Flowers grow in spring." },
+    { pl: "lato", en: "summer", ex: "Summer is my favourite season." },
+    { pl: "jesień", en: "autumn", ex: "Leaves fall in autumn." },
+    { pl: "zima", en: "winter", ex: "It snows a lot in winter." }
+  ] },
+  { id: "vs_shopping", title: "Zakupy i pieniądze", level: "A2", words: [
+    { pl: "sklep", en: "shop", ex: "The shop opens at nine." },
+    { pl: "supermarket", en: "supermarket", ex: "I buy food at the supermarket." },
+    { pl: "targ, rynek", en: "market", ex: "We buy vegetables at the market." },
+    { pl: "cena", en: "price", ex: "The price is too high." },
+    { pl: "gotówka", en: "cash", ex: "Can I pay in cash?" },
+    { pl: "karta (płatnicza)", en: "card", ex: "I'll pay by card." },
+    { pl: "paragon", en: "receipt", ex: "Keep the receipt." },
+    { pl: "zniżka", en: "discount", ex: "Students get a discount." },
+    { pl: "wyprzedaż", en: "sale", ex: "These shoes were in the sale." },
+    { pl: "monety", en: "coins", ex: "I have some coins for the parking." },
+    { pl: "rachunek (do zapłaty)", en: "bill", ex: "Can we have the bill, please?" },
+    { pl: "portfel", en: "wallet", ex: "My wallet is empty." },
+    { pl: "kolejka", en: "queue", ex: "There's a long queue at the checkout." },
+    { pl: "koszyk", en: "basket", ex: "Put the apples in the basket." },
+    { pl: "wózek sklepowy", en: "trolley", ex: "Let's take a trolley." },
+    { pl: "kasa (w sklepie)", en: "checkout", ex: "Please pay at the checkout." },
+    { pl: "zwrot pieniędzy", en: "refund", ex: "I'd like a refund." },
+    { pl: "okazja (tani zakup)", en: "bargain", ex: "This coat was a real bargain." },
+    { pl: "płacić", en: "pay", ex: "How would you like to pay?" },
+    { pl: "wydawać (pieniądze)", en: "spend", ex: "I spend too much on clothes." },
+    { pl: "oszczędzać", en: "save", ex: "I'm saving for a new bike." },
+    { pl: "kosztować", en: "cost", ex: "How much does it cost?" },
+    { pl: "przymierzać", en: "try on", ex: "Can I try on this jacket?" },
+    { pl: "sprzedawca (w sklepie)", en: "shop assistant", ex: "The shop assistant was very helpful." },
+    { pl: "prezent", en: "gift", ex: "I need a gift for my sister." }
+  ] },
+  { id: "vs_health", title: "Zdrowie i u lekarza", level: "A2", words: [
+    { pl: "lekarz", en: "doctor", ex: "You should see a doctor." },
+    { pl: "pielęgniarka", en: "nurse", ex: "The nurse took my blood pressure." },
+    { pl: "szpital", en: "hospital", ex: "He is still in hospital." },
+    { pl: "apteka", en: "pharmacy", ex: "Is there a pharmacy near here?" },
+    { pl: "lekarstwo", en: "medicine", ex: "Take this medicine twice a day." },
+    { pl: "tabletka", en: "pill", ex: "Take one pill after meals." },
+    { pl: "ból głowy", en: "headache", ex: "I have a terrible headache." },
+    { pl: "gorączka", en: "fever", ex: "The child has a high fever." },
+    { pl: "kaszel", en: "cough", ex: "I can't stop this cough." },
+    { pl: "grypa", en: "flu", ex: "Half of my class has flu." },
+    { pl: "ból gardła", en: "sore throat", ex: "I have a sore throat." },
+    { pl: "uraz", en: "injury", ex: "It's only a small injury." },
+    { pl: "ból", en: "pain", ex: "I have a pain in my back." },
+    { pl: "wizyta (umówiona)", en: "appointment", ex: "I have a doctor's appointment at ten." },
+    { pl: "recepta", en: "prescription", ex: "You need a prescription for this." },
+    { pl: "karetka", en: "ambulance", ex: "Call an ambulance!" },
+    { pl: "dentysta", en: "dentist", ex: "I go to the dentist twice a year." },
+    { pl: "chory", en: "sick", ex: "I feel sick." },
+    { pl: "alergia", en: "allergy", ex: "I have an allergy to nuts." },
+    { pl: "dieta", en: "diet", ex: "A healthy diet is important." },
+    { pl: "ćwiczenia fizyczne", en: "exercise", ex: "Regular exercise is good for you." },
+    { pl: "odpoczynek", en: "rest", ex: "You need some rest." },
+    { pl: "pacjent", en: "patient", ex: "The patient is waiting." },
+    { pl: "objaw", en: "symptom", ex: "What are your symptoms?" },
+    { pl: "badanie krwi", en: "blood test", ex: "I need a blood test." }
+  ] },
+  { id: "vs_school", title: "Szkoła i nauka", level: "A2", words: [
+    { pl: "nauczyciel", en: "teacher", ex: "Our teacher is very patient." },
+    { pl: "uczeń", en: "pupil", ex: "There are twenty pupils in the class." },
+    { pl: "lekcja", en: "lesson", ex: "The lesson starts at eight." },
+    { pl: "praca domowa", en: "homework", ex: "I have a lot of homework." },
+    { pl: "egzamin", en: "exam", ex: "The exam was easy." },
+    { pl: "ocena", en: "mark", ex: "I got a good mark in maths." },
+    { pl: "sala lekcyjna", en: "classroom", ex: "The classroom is on the first floor." },
+    { pl: "przedmiot (szkolny)", en: "subject", ex: "History is my favourite subject." },
+    { pl: "matematyka", en: "maths", ex: "Maths is difficult for me." },
+    { pl: "historia", en: "history", ex: "We learn about the war in history." },
+    { pl: "biologia", en: "biology", ex: "In biology we study plants." },
+    { pl: "geografia", en: "geography", ex: "Geography is about countries and maps." },
+    { pl: "słownik", en: "dictionary", ex: "Look it up in the dictionary." },
+    { pl: "zeszyt", en: "notebook", ex: "Write it in your notebook." },
+    { pl: "ołówek", en: "pencil", ex: "Can I borrow a pencil?" },
+    { pl: "długopis", en: "pen", ex: "My pen doesn't work." },
+    { pl: "gumka do mazania", en: "rubber", ex: "I need a rubber." },
+    { pl: "przerwa", en: "break", ex: "We have a break at ten." },
+    { pl: "uniwersytet", en: "university", ex: "She studies law at university." },
+    { pl: "dyplom", en: "diploma", ex: "He finally got his diploma." },
+    { pl: "wiedza", en: "knowledge", ex: "Knowledge is power." },
+    { pl: "zdać (egzamin)", en: "pass", ex: "I hope I pass the test." },
+    { pl: "oblać (egzamin)", en: "fail", ex: "He failed his driving test." },
+    { pl: "błąd", en: "mistake", ex: "Everyone makes mistakes." },
+    { pl: "odpowiedź", en: "answer", ex: "What's the answer?" }
+  ] },
+  { id: "vs_hobby", title: "Czas wolny i hobby", level: "A2", words: [
+    { pl: "koncert", en: "concert", ex: "We went to a rock concert." },
+    { pl: "kino", en: "cinema", ex: "Let's go to the cinema tonight." },
+    { pl: "teatr", en: "theatre", ex: "We saw a play at the theatre." },
+    { pl: "muzeum", en: "museum", ex: "The museum is free on Sundays." },
+    { pl: "galeria", en: "gallery", ex: "The gallery has modern art." },
+    { pl: "malarstwo", en: "painting", ex: "Painting helps me relax." },
+    { pl: "fotografia", en: "photography", ex: "He is interested in photography." },
+    { pl: "ogrodnictwo", en: "gardening", ex: "My dad loves gardening." },
+    { pl: "gotowanie", en: "cooking", ex: "Cooking is my hobby." },
+    { pl: "wędkarstwo", en: "fishing", ex: "We go fishing on the lake." },
+    { pl: "piesze wędrówki", en: "hiking", ex: "We go hiking in the mountains." },
+    { pl: "jazda na rowerze", en: "cycling", ex: "Cycling is good exercise." },
+    { pl: "pływanie", en: "swimming", ex: "Swimming is my favourite sport." },
+    { pl: "szachy", en: "chess", ex: "Do you play chess?" },
+    { pl: "gra planszowa", en: "board game", ex: "We played a board game all evening." },
+    { pl: "gra komputerowa", en: "video game", ex: "He plays video games every day." },
+    { pl: "gitara", en: "guitar", ex: "She plays the guitar." },
+    { pl: "pianino", en: "piano", ex: "I'm learning the piano." },
+    { pl: "drużyna", en: "team", ex: "Which team do you support?" },
+    { pl: "mecz", en: "match", ex: "The match starts at eight." },
+    { pl: "zawodnik", en: "player", ex: "He is the best player in the team." },
+    { pl: "siłownia", en: "gym", ex: "I go to the gym three times a week." },
+    { pl: "namiot", en: "tent", ex: "We slept in a tent." },
+    { pl: "wakacje, urlop", en: "holiday", ex: "Where are you going on holiday?" },
+    { pl: "hobby", en: "hobby", ex: "What's your hobby?" }
+  ] },
+  { id: "vs_emotions", title: "Emocje i charakter", level: "B1", words: [
+    { pl: "zły (rozgniewany)", en: "angry", ex: "Why are you so angry?" },
+    { pl: "smutny", en: "sad", ex: "The film made me sad." },
+    { pl: "przestraszony", en: "afraid", ex: "She is afraid of the dark." },
+    { pl: "dumny", en: "proud", ex: "I'm proud of you." },
+    { pl: "zazdrosny", en: "jealous", ex: "He is jealous of his brother." },
+    { pl: "samotny", en: "lonely", ex: "She feels lonely in the new city." },
+    { pl: "zdenerwowany, spięty", en: "nervous", ex: "I'm nervous about the interview." },
+    { pl: "zawstydzony", en: "embarrassed", ex: "I was so embarrassed!" },
+    { pl: "rozczarowany", en: "disappointed", ex: "We were disappointed with the hotel." },
+    { pl: "zaskoczony", en: "surprised", ex: "I was surprised to see him." },
+    { pl: "zrelaksowany", en: "relaxed", ex: "I feel relaxed after yoga." },
+    { pl: "wdzięczny", en: "grateful", ex: "I'm grateful for your help." },
+    { pl: "podekscytowany", en: "excited", ex: "The kids are excited about the trip." },
+    { pl: "zmartwiony", en: "worried", ex: "Mum is worried about you." },
+    { pl: "znudzony", en: "bored", ex: "I'm bored. Let's go out." },
+    { pl: "zdezorientowany", en: "confused", ex: "I'm confused by these instructions." },
+    { pl: "zirytowany", en: "annoyed", ex: "She was annoyed with me." },
+    { pl: "hojny", en: "generous", ex: "He is very generous with his time." },
+    { pl: "samolubny", en: "selfish", ex: "Don't be so selfish." },
+    { pl: "rzetelny, niezawodny", en: "reliable", ex: "She is a reliable worker." },
+    { pl: "uparty", en: "stubborn", ex: "My brother is very stubborn." },
+    { pl: "pogodny, radosny", en: "cheerful", ex: "She is always cheerful." },
+    { pl: "ambitny", en: "ambitious", ex: "He is young and ambitious." },
+    { pl: "wrażliwy", en: "sensitive", ex: "He is sensitive to criticism." },
+    { pl: "życzliwy, miły", en: "kind", ex: "It was kind of you to help." }
+  ] },
+  { id: "vs_tech", title: "Technologia i internet", level: "B1", words: [
+    { pl: "komputer", en: "computer", ex: "My computer is very slow." },
+    { pl: "klawiatura", en: "keyboard", ex: "The keyboard is under the desk." },
+    { pl: "ekran", en: "screen", ex: "The screen is too bright." },
+    { pl: "hasło", en: "password", ex: "I forgot my password." },
+    { pl: "strona internetowa", en: "website", ex: "Visit our website for more information." },
+    { pl: "pobierać", en: "download", ex: "Download the app for free." },
+    { pl: "przesyłać (na serwer)", en: "upload", ex: "I'll upload the photos tonight." },
+    { pl: "plik", en: "file", ex: "Save the file on your desktop." },
+    { pl: "bateria", en: "battery", ex: "My phone battery is dead." },
+    { pl: "ładowarka", en: "charger", ex: "Have you got a phone charger?" },
+    { pl: "aplikacja", en: "app", ex: "This app helps me learn English." },
+    { pl: "aktualizacja", en: "update", ex: "Install the latest update." },
+    { pl: "konto", en: "account", ex: "Create a new account." },
+    { pl: "drukarka", en: "printer", ex: "The printer is out of paper." },
+    { pl: "wyszukiwarka", en: "search engine", ex: "Use a search engine to find it." },
+    { pl: "media społecznościowe", en: "social media", ex: "She spends hours on social media." },
+    { pl: "ustawienia", en: "settings", ex: "Change the language in the settings." },
+    { pl: "bezprzewodowy", en: "wireless", ex: "I have wireless headphones." },
+    { pl: "urządzenie", en: "device", ex: "Turn off all electronic devices." },
+    { pl: "oprogramowanie", en: "software", ex: "The software is easy to use." },
+    { pl: "kopia zapasowa", en: "backup", ex: "Always make a backup of your files." },
+    { pl: "wirus", en: "virus", ex: "My laptop has a virus." },
+    { pl: "zrzut ekranu", en: "screenshot", ex: "Send me a screenshot." },
+    { pl: "zalogować się", en: "log in", ex: "Log in with your email address." },
+    { pl: "usunąć", en: "delete", ex: "Don't delete that message!" }
+  ] },
+  { id: "vs_nature", title: "Przyroda i środowisko", level: "B1", words: [
+    { pl: "las", en: "forest", ex: "We walked through the forest." },
+    { pl: "góra", en: "mountain", ex: "We climbed the highest mountain." },
+    { pl: "rzeka", en: "river", ex: "The river flows into the sea." },
+    { pl: "jezioro", en: "lake", ex: "We swam in the lake." },
+    { pl: "morze", en: "sea", ex: "The sea is calm today." },
+    { pl: "plaża", en: "beach", ex: "Let's go to the beach." },
+    { pl: "wyspa", en: "island", ex: "They live on a small island." },
+    { pl: "dolina", en: "valley", ex: "The village is in a green valley." },
+    { pl: "wzgórze", en: "hill", ex: "The house is on a hill." },
+    { pl: "pole", en: "field", ex: "Cows are standing in the field." },
+    { pl: "drzewo", en: "tree", ex: "There's an old tree in our garden." },
+    { pl: "kwiat", en: "flower", ex: "He gave her a flower." },
+    { pl: "trawa", en: "grass", ex: "Don't walk on the grass." },
+    { pl: "liść", en: "leaf", ex: "The leaves are turning yellow." },
+    { pl: "środowisko", en: "environment", ex: "We must protect the environment." },
+    { pl: "zanieczyszczenie", en: "pollution", ex: "Air pollution is a big problem." },
+    { pl: "recykling", en: "recycling", ex: "Recycling helps the planet." },
+    { pl: "śmieci", en: "rubbish", ex: "Don't leave rubbish in the park." },
+    { pl: "klimat", en: "climate", ex: "The climate is changing." },
+    { pl: "globalne ocieplenie", en: "global warming", ex: "Global warming affects everyone." },
+    { pl: "energia", en: "energy", ex: "We should save energy." },
+    { pl: "panel słoneczny", en: "solar panel", ex: "We put solar panels on the roof." },
+    { pl: "chronić", en: "protect", ex: "These laws protect wild animals." },
+    { pl: "marnować", en: "waste", ex: "Don't waste water." },
+    { pl: "gatunek", en: "species", ex: "Many species are in danger." }
+  ] },
+  { id: "vs_media", title: "Media i społeczeństwo", level: "B2", words: [
+    { pl: "wiadomości", en: "news", ex: "I watch the news every evening." },
+    { pl: "nagłówek", en: "headline", ex: "The headline was shocking." },
+    { pl: "dziennikarz", en: "journalist", ex: "The journalist asked difficult questions." },
+    { pl: "artykuł", en: "article", ex: "I read an interesting article about sleep." },
+    { pl: "gazeta", en: "newspaper", ex: "He reads the newspaper on the train." },
+    { pl: "transmisja, nadawać", en: "broadcast", ex: "The match will be broadcast live." },
+    { pl: "publiczność, widownia", en: "audience", ex: "The audience loved the show." },
+    { pl: "reklama", en: "advertisement", ex: "There are too many advertisements on TV." },
+    { pl: "cenzura", en: "censorship", ex: "Censorship limits freedom of speech." },
+    { pl: "wybory", en: "election", ex: "The election is next month." },
+    { pl: "rząd", en: "government", ex: "The government announced new taxes." },
+    { pl: "prawo (przepisy)", en: "law", ex: "It's against the law." },
+    { pl: "przestępstwo", en: "crime", ex: "Crime has fallen this year." },
+    { pl: "sąd", en: "court", ex: "The case went to court." },
+    { pl: "dowody", en: "evidence", ex: "There is no evidence against him." },
+    { pl: "świadek", en: "witness", ex: "The witness saw the accident." },
+    { pl: "bezrobocie", en: "unemployment", ex: "Unemployment is rising." },
+    { pl: "ubóstwo", en: "poverty", ex: "Millions of people live in poverty." },
+    { pl: "równość", en: "equality", ex: "They fight for equality." },
+    { pl: "społeczeństwo", en: "society", ex: "Technology has changed society." },
+    { pl: "obywatel", en: "citizen", ex: "Every citizen has the right to vote." },
+    { pl: "głosować", en: "vote", ex: "Who did you vote for?" },
+    { pl: "kwestia, problem", en: "issue", ex: "Climate change is a global issue." },
+    { pl: "opinia publiczna", en: "public opinion", ex: "Public opinion is divided." },
+    { pl: "fałszywe wiadomości", en: "fake news", ex: "Be careful about fake news online." }
+  ] },
+  { id: "vs_business", title: "Biznes i finanse", level: "B2", words: [
+    { pl: "zysk", en: "profit", ex: "The company made a big profit." },
+    { pl: "strata", en: "loss", ex: "The shop made a loss this year." },
+    { pl: "dochód", en: "income", ex: "Their income has doubled." },
+    { pl: "podatek", en: "tax", ex: "We pay tax on everything." },
+    { pl: "pożyczka, kredyt", en: "loan", ex: "They took out a loan to buy a house." },
+    { pl: "dług", en: "debt", ex: "He is in debt." },
+    { pl: "inwestycja", en: "investment", ex: "Property is a good investment." },
+    { pl: "budżet", en: "budget", ex: "We are working on a tight budget." },
+    { pl: "faktura", en: "invoice", ex: "Please send us the invoice." },
+    { pl: "akcje (giełdowe)", en: "shares", ex: "She bought shares in the company." },
+    { pl: "konkurencja", en: "competition", ex: "There is strong competition in this market." },
+    { pl: "obsługa klienta", en: "customer service", ex: "Their customer service is excellent." },
+    { pl: "negocjować", en: "negotiate", ex: "We need to negotiate a better price." },
+    { pl: "dostawca", en: "supplier", ex: "We changed our supplier." },
+    { pl: "porozumienie, umowa", en: "agreement", ex: "Both sides reached an agreement." },
+    { pl: "sprzedaż (wyniki)", en: "sales", ex: "Sales increased by ten percent." },
+    { pl: "wzrost", en: "growth", ex: "The economy shows strong growth." },
+    { pl: "marka", en: "brand", ex: "It's a well-known brand." },
+    { pl: "wprowadzić na rynek", en: "launch", ex: "They will launch the product in May." },
+    { pl: "siedziba (firmy)", en: "headquarters", ex: "The headquarters are in London." },
+    { pl: "udziałowiec", en: "shareholder", ex: "The shareholders approved the plan." },
+    { pl: "zbankrutowany", en: "bankrupt", ex: "The company went bankrupt." },
+    { pl: "przychód", en: "revenue", ex: "Annual revenue reached two million." },
+    { pl: "inflacja", en: "inflation", ex: "Inflation is very high." },
+    { pl: "stopa procentowa", en: "interest rate", ex: "Interest rates went up again." }
+  ] },
+  { id: "vs_phrasal", title: "Phrasal verbs", level: "B2", words: [
+    { pl: "wstawać", en: "get up", ex: "I get up at seven." },
+    { pl: "poddać się, rzucić (nałóg)", en: "give up", ex: "Don't give up now!" },
+    { pl: "opiekować się", en: "look after", ex: "Can you look after my cat?" },
+    { pl: "szukać", en: "look for", ex: "I'm looking for my glasses." },
+    { pl: "dowiedzieć się", en: "find out", ex: "I found out the truth." },
+    { pl: "wyłączyć", en: "turn off", ex: "Turn off the lights." },
+    { pl: "włączyć", en: "turn on", ex: "Turn on the radio." },
+    { pl: "odkładać na później", en: "put off", ex: "Stop putting off your homework." },
+    { pl: "kontynuować", en: "carry on", ex: "Carry on, I'm listening." },
+    { pl: "założyć (firmę)", en: "set up", ex: "She set up her own company." },
+    { pl: "skończyć się (zapasy)", en: "run out of", ex: "We've run out of milk." },
+    { pl: "natknąć się na", en: "come across", ex: "I came across an old photo." },
+    { pl: "dojść do siebie po", en: "get over", ex: "She got over the flu quickly." },
+    { pl: "zepsuć się (o maszynie)", en: "break down", ex: "Our car broke down on the motorway." },
+    { pl: "wychować", en: "bring up", ex: "She was brought up by her grandparents." },
+    { pl: "być podobnym do (rodzica)", en: "take after", ex: "He takes after his father." },
+    { pl: "odwołać", en: "call off", ex: "They called off the meeting." },
+    { pl: "nie móc się doczekać", en: "look forward to", ex: "I'm looking forward to the holidays." },
+    { pl: "zmyślić", en: "make up", ex: "He made up an excuse." },
+    { pl: "odrzucić (ofertę)", en: "turn down", ex: "She turned down the job offer." },
+    { pl: "znosić, tolerować", en: "put up with", ex: "I can't put up with this noise." },
+    { pl: "dogadywać się z", en: "get along with", ex: "I get along with my colleagues." },
+    { pl: "ćwiczyć (na siłowni)", en: "work out", ex: "I work out three times a week." },
+    { pl: "rozgryźć, zrozumieć", en: "figure out", ex: "I can't figure out this problem." },
+    { pl: "pojawić się, przyjść", en: "show up", ex: "He showed up an hour late." }
+  ] },
+  { id: "vs_advanced", title: "Słownictwo zaawansowane", level: "C1", words: [
+    { pl: "gruntowny, dokładny", en: "thorough", ex: "The police carried out a thorough search." },
+    { pl: "niechętny", en: "reluctant", ex: "He was reluctant to help." },
+    { pl: "nieunikniony", en: "inevitable", ex: "Change is inevitable." },
+    { pl: "dwuznaczny", en: "ambiguous", ex: "His answer was deliberately ambiguous." },
+    { pl: "wykonalny", en: "feasible", ex: "Is the plan financially feasible?" },
+    { pl: "wynik, rezultat", en: "outcome", ex: "Nobody can predict the outcome." },
+    { pl: "oceniać", en: "assess", ex: "We need to assess the damage." },
+    { pl: "podkreślać", en: "emphasise", ex: "She emphasised the importance of sleep." },
+    { pl: "podważać", en: "undermine", ex: "His comments undermined her authority." },
+    { pl: "ulepszać, zwiększać", en: "enhance", ex: "Music can enhance your mood." },
+    { pl: "kompleksowy, wyczerpujący", en: "comprehensive", ex: "The book is a comprehensive guide." },
+    { pl: "konsekwentny, spójny", en: "consistent", ex: "Be consistent with the rules." },
+    { pl: "kluczowy", en: "crucial", ex: "Timing is crucial." },
+    { pl: "znaczny", en: "substantial", ex: "They made a substantial profit." },
+    { pl: "powszechny", en: "widespread", ex: "The disease is widespread in the region." },
+    { pl: "kontrowersyjny", en: "controversial", ex: "It's a controversial decision." },
+    { pl: "przyznawać, uznawać", en: "acknowledge", ex: "He acknowledged his mistake." },
+    { pl: "przewidywać", en: "anticipate", ex: "We anticipate some delays." },
+    { pl: "postrzegać", en: "perceive", ex: "How do others perceive you?" },
+    { pl: "zrównoważony (ekologicznie)", en: "sustainable", ex: "We need sustainable energy." },
+    { pl: "pogarszać się", en: "deteriorate", ex: "His health began to deteriorate." },
+    { pl: "przekonujący", en: "compelling", ex: "She made a compelling argument." },
+    { pl: "wada, minus", en: "drawback", ex: "The main drawback is the price." },
+    { pl: "wgląd, spostrzeżenie", en: "insight", ex: "The book gives an insight into her life." },
+    { pl: "wszechstronny", en: "versatile", ex: "She is a versatile actress." }
+  ] },
+  { id: "vs_idioms", title: "Idiomy", level: "C1", words: [
+    { pl: "bułka z masłem", en: "piece of cake", ex: "The test was a piece of cake." },
+    { pl: "przełamać lody", en: "break the ice", ex: "He told a joke to break the ice." },
+    { pl: "niedysponowany, chory", en: "under the weather", ex: "I'm feeling a bit under the weather." },
+    { pl: "kosztować majątek", en: "cost an arm and a leg", ex: "That car cost an arm and a leg." },
+    { pl: "raz na ruski rok", en: "once in a blue moon", ex: "We only eat out once in a blue moon." },
+    { pl: "trafić w sedno", en: "hit the nail on the head", ex: "You've hit the nail on the head." },
+    { pl: "wygadać się (z sekretem)", en: "let the cat out of the bag", ex: "Who let the cat out of the bag?" },
+    { pl: "kropla, która przelała czarę", en: "the last straw", ex: "His rudeness was the last straw." },
+    { pl: "szczęście w nieszczęściu", en: "a blessing in disguise", ex: "Losing that job was a blessing in disguise." },
+    { pl: "skończyć na dziś", en: "call it a day", ex: "It's late, let's call it a day." },
+    { pl: "stchórzyć w ostatniej chwili", en: "get cold feet", ex: "He got cold feet before the wedding." },
+    { pl: "wyjawić tajemnicę", en: "spill the beans", ex: "Come on, spill the beans!" },
+    { pl: "mieć kłopoty", en: "in hot water", ex: "He's in hot water with his boss." },
+    { pl: "owijać w bawełnę", en: "beat around the bush", ex: "Stop beating around the bush." },
+    { pl: "pracować do późna w nocy", en: "burn the midnight oil", ex: "I burned the midnight oil before the exam." },
+    { pl: "zgadzać się, mieć to samo zdanie", en: "see eye to eye", ex: "We don't always see eye to eye." },
+    { pl: "leje jak z cebra", en: "raining cats and dogs", ex: "It's raining cats and dogs outside." },
+    { pl: "upiec dwie pieczenie na jednym ogniu", en: "kill two birds with one stone", ex: "I killed two birds with one stone." },
+    { pl: "nagle, niespodziewanie", en: "out of the blue", ex: "She called me out of the blue." },
+    { pl: "prędzej mi kaktus wyrośnie", en: "when pigs fly", ex: "He'll clean his room when pigs fly." },
+    { pl: "nie opowiadać się po żadnej stronie", en: "sit on the fence", ex: "You can't sit on the fence forever." },
+    { pl: "połamania nóg", en: "break a leg", ex: "Break a leg tonight!" },
+    { pl: "o włos", en: "by the skin of your teeth", ex: "I passed by the skin of my teeth." },
+    { pl: "podchodzić z rezerwą", en: "take it with a pinch of salt", ex: "Take his advice with a pinch of salt." },
+    { pl: "być na tej samej stronie, rozumieć się", en: "on the same page", ex: "Let's make sure we're on the same page." }
+  ] }
+];
+
+Object.keys(VOCAB_EXTRA).forEach((id) => {
+  const set = VOCAB.find((s) => s.id === id);
+  if (set) set.words.push(...VOCAB_EXTRA[id]);
+});
+VOCAB.push(...VOCAB_NEW);
+// zestawy uporządkowane wg poziomu (A1 → C1)
+VOCAB.sort((a, b) => a.level.localeCompare(b.level));
 
 const VOCAB_ACT_DESC = {
   cards: "Fiszki: zobacz słowo, kliknij kartę, aby ją odwrócić, i zaznacz, czy je znasz.",
