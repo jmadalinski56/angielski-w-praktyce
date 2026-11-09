@@ -2794,20 +2794,24 @@ if (window.speechSynthesis) {
 }
 
 // Wybiera możliwie naturalny głos ANGIELSKI (nigdy polski dla angielskiego tekstu).
+// Głosy zainstalowane na komputerze mają pierwszeństwo: sieciowy „Google US English”
+// potrafi zawiesić syntezę mowy w Chrome (stan „mówi” bez końca, cisza).
 function pickEnglishVoice() {
   const vs = (ttsVoices && ttsVoices.length) ? ttsVoices : (window.speechSynthesis.getVoices() || []);
-  const en = vs.filter((v) => /^en([-_]|$)/i.test(v.lang));
-  if (!en.length) return null;
+  const all = vs.filter((v) => /^en([-_]|$)/i.test(v.lang));
+  if (!all.length) return null;
+  const local = all.filter((v) => v.localService);
+  const en = local.length ? local : all;
   const prefer = [
-    "Google US English", "Google UK English Female", "Google UK English Male",
-    "Samantha", "Karen", "Daniel", "Moira", "Tessa",
-    "Microsoft Aria", "Microsoft Jenny", "Microsoft Zira", "Microsoft David", "Microsoft Guy"
+    "Samantha", "Daniel", "Karen", "Moira", "Tessa",
+    "Microsoft Aria", "Microsoft Jenny", "Microsoft Zira", "Microsoft David", "Microsoft Guy",
+    "Google US English", "Google UK English Female", "Google UK English Male"
   ];
   for (const name of prefer) {
     const m = en.find((v) => v.name === name || v.name.indexOf(name) !== -1);
     if (m) return m;
   }
-  return en.find((v) => /en[-_]us/i.test(v.lang)) || en.find((v) => /en[-_]gb/i.test(v.lang)) || en[0];
+  return en.find((v) => v.default) || en.find((v) => /en[-_]us/i.test(v.lang)) || en.find((v) => /en[-_]gb/i.test(v.lang)) || en[0];
 }
 
 let ttsCurrent = null;
