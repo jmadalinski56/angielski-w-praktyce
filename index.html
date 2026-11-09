@@ -547,6 +547,12 @@ mark.bad { background: var(--bad-bg); color: var(--bad); text-decoration: line-t
 .recent div { display: flex; justify-content: space-between; gap: 10px; padding: 5px 10px; background: var(--card-2); border-radius: 8px; }
 .recent span:last-child { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
 .howto { margin: 0; padding-left: 20px; color: var(--muted); font-size: 0.9rem; display: grid; gap: 6px; }
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 50;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: min(560px, calc(100% - 32px));
+  background: var(--text); color: var(--bg); border-radius: 12px; padding: 12px 16px;
+  font-size: 0.9rem; line-height: 1.4; box-shadow: var(--shadow);
+}
 .danger-link { background: none; border: none; color: var(--bad); font: inherit; font-size: 0.85rem; cursor: pointer; padding: 0; text-decoration: underline; }
 button:focus-visible, .struct-card:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -2805,9 +2811,28 @@ function pickEnglishVoice(localOnly) {
 // cancel() tuż przed speak() gubi wypowiedź, wstrzymana kolejka milczy,
 // a nieużywany obiekt wypowiedzi bywa usuwany z pamięci przed odtworzeniem.
 let ttsCurrent = null;
+
+// Komunikat, gdy przeglądarka nie odtworzy dźwięku (np. wyciszony widok artefaktu).
+function ttsFailed() {
+  let t = document.getElementById("ttsToast");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "ttsToast";
+    t.className = "toast";
+    t.setAttribute("role", "status");
+    document.body.appendChild(t);
+  }
+  t.textContent = ON_CLAUDE
+    ? "🔇 Nie udało się odtworzyć dźwięku w tym widoku claude.ai. Odsłuch działa w wersji: jmadalinski56.github.io/angielski-w-praktyce"
+    : "🔇 Przeglądarka nie odtworzyła dźwięku. Sprawdź głośność, wyjście dźwięku (słuchawki Bluetooth) i czy w systemie jest zainstalowany angielski głos.";
+  t.hidden = false;
+  clearTimeout(ttsFailed.timer);
+  ttsFailed.timer = setTimeout(() => { t.hidden = true; }, 7000);
+}
 function speakText(text, btnId, rate) {
   const synth = window.speechSynthesis;
-  if (!synth || !text) return;
+  if (!text) return;
+  if (!synth || typeof SpeechSynthesisUtterance === "undefined") { ttsFailed(); return; }
   const btn = btnId ? document.getElementById(btnId) : null;
   const run = (attempt) => {
     let started = false;
@@ -2822,7 +2847,9 @@ function speakText(text, btnId, rate) {
     u.onerror = (e) => {
       if (btn) btn.classList.remove("speaking");
       const err = e && e.error;
-      if (attempt === 0 && err !== "interrupted" && err !== "canceled") run(1);   // spróbuj głosem lokalnym
+      if (err === "interrupted" || err === "canceled") return;
+      if (attempt === 0) run(1);   // spróbuj głosem lokalnym
+      else ttsFailed();
     };
     ttsCurrent = u;   // trzymaj referencję do końca odtwarzania
     try { synth.resume(); } catch (e) {}
@@ -2831,6 +2858,9 @@ function speakText(text, btnId, rate) {
     if (attempt === 0) setTimeout(() => {
       if (!started && ttsCurrent === u && !synth.speaking) { try { synth.cancel(); } catch (e) {} run(1); }
     }, 1500);
+    else setTimeout(() => {
+      if (!started && ttsCurrent === u && !synth.speaking) ttsFailed();
+    }, 2000);
   };
   try {
     if (synth.speaking || synth.pending) {
@@ -2839,7 +2869,7 @@ function speakText(text, btnId, rate) {
     } else {
       run(0);
     }
-  } catch (e) { /* synteza niedostępna — ignoruj */ }
+  } catch (e) { ttsFailed(); }
 }
 
 // Odczytuje poprawną odpowiedź na głos.
