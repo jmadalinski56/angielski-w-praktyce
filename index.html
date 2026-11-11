@@ -5245,6 +5245,7 @@ function checkSpell(raw) {
     ? `<div class="vocab-reveal">✓ ${escapeHtml(w.en)}</div>`
     : `<div class="vocab-reveal bad">✗ poprawnie: ${escapeHtml(w.en)}</div>` +
       (raw.trim() ? `<div class="vocab-your">Twoja wersja: ${escapeHtml(raw.trim())}</div>` : "");
+  if (s.activity === "dictation" && w.pl) fb.innerHTML += `<div class="vocab-pl-tr">🇵🇱 ${escapeHtml(w.pl)}</div>`;
   const inp = document.getElementById("vocabInput"); if (inp) inp.disabled = true;
   const cb = document.getElementById("vocabCheck"); if (cb) cb.disabled = true;
   vocabAfterAnswer(w);
