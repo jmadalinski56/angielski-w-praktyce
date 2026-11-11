@@ -435,6 +435,7 @@ mark.bad { background: var(--bad-bg); color: var(--bad); text-decoration: line-t
 .word-input:disabled { opacity: 0.7; }
 .vocab-reveal { text-align: center; margin-top: 16px; font-size: 1.35rem; font-weight: 800; color: var(--good); }
 .vocab-reveal.bad { color: var(--bad); }
+.vocab-pl-tr { text-align: center; margin-top: 8px; font-size: 1.1rem; font-weight: 600; color: var(--text); }
 .vocab-your { text-align: center; margin-top: 6px; color: var(--muted); font-size: 0.95rem; }
 .say-btn {
   border: 1px solid var(--border); background: var(--card); color: var(--accent);
@@ -5343,6 +5344,7 @@ function vocabSpeakResult(w, heard, skipped) {
     ? `<div class="vocab-reveal">✓ Dobra wymowa: ${escapeHtml(w.en)}</div>`
     : `<div class="vocab-reveal bad">${skipped ? "" : "✗ "}Poprawnie: ${escapeHtml(w.en)}</div>` +
       (!skipped && heard ? `<div class="vocab-your">Usłyszano: ${escapeHtml(heard)}</div>` : "");
+  if (w.pl) fb.innerHTML += `<div class="vocab-pl-tr">🇵🇱 ${escapeHtml(w.pl)}</div>`;
   const mic = document.getElementById("vocabMic"); if (mic) mic.disabled = true;
   const skip = document.getElementById("vocabSkip"); if (skip) skip.disabled = true;
   vocabAfterAnswer(w);
