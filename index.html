@@ -3419,7 +3419,7 @@ function pickEnglishVoice() {
 let ttsCurrent = null;
 
 // Komunikat, gdy przeglądarka nie odtworzy dźwięku (np. wyciszony widok artefaktu).
-function ttsFailed() {
+function ttsFailed(stuck) {
   let t = document.getElementById("ttsToast");
   if (!t) {
     t = document.createElement("div");
@@ -3430,7 +3430,9 @@ function ttsFailed() {
   }
   t.textContent = ON_CLAUDE
     ? "🔇 Nie udało się odtworzyć dźwięku w tym widoku claude.ai. Odsłuch działa w wersji: jmadalinski56.github.io/angielski-w-praktyce"
-    : "🔇 Przeglądarka nie odtworzyła dźwięku. Sprawdź głośność, wyjście dźwięku (słuchawki Bluetooth) i czy w systemie jest zainstalowany angielski głos.";
+    : stuck
+      ? "🔇 Odczyt na głos w przeglądarce się zawiesił. Zamknij przeglądarkę całkowicie (na Macu Cmd + Q) i otwórz ją ponownie."
+      : "🔇 Przeglądarka nie odtworzyła dźwięku. Sprawdź głośność, wyjście dźwięku (słuchawki Bluetooth) i czy w systemie jest zainstalowany angielski głos.";
   t.hidden = false;
   clearTimeout(ttsFailed.timer);
   ttsFailed.timer = setTimeout(() => { t.hidden = true; }, 7000);
@@ -3450,7 +3452,8 @@ function speakText(text, btnId, rate) {
     u.rate = rate || 0.95;
     u.pitch = 1;
     const btn = btnId ? document.getElementById(btnId) : null;
-    u.onstart = () => { if (btn) btn.classList.add("speaking"); };
+    let started = false;
+    u.onstart = () => { started = true; if (btn) btn.classList.add("speaking"); };
     u.onend = () => { if (btn) btn.classList.remove("speaking"); };
     u.onerror = (e) => {
       if (btn) btn.classList.remove("speaking");
@@ -3459,6 +3462,8 @@ function speakText(text, btnId, rate) {
     };
     ttsCurrent = u;
     synth.speak(u);
+    // tylko informacja (bez przerywania): jeśli nic nie ruszyło, synteza w przeglądarce się zawiesiła
+    setTimeout(() => { if (!started && ttsCurrent === u) ttsFailed(true); }, 2500);
   } catch (e) { ttsFailed(); }
 }
 
