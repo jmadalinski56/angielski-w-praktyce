@@ -556,6 +556,39 @@ mark.bad { background: var(--bad-bg); color: var(--bad); text-decoration: line-t
 .sound-log { white-space: pre-wrap; margin: 6px 0 0; min-height: 0; }
 .inline-say { width: 32px; height: 32px; font-size: 0.9rem; vertical-align: middle; margin-left: 6px; }
 .danger-link { background: none; border: none; color: var(--bad); font: inherit; font-size: 0.85rem; cursor: pointer; padding: 0; text-decoration: underline; }
+/* --- Czasowniki nieregularne --- */
+.section-switch { flex-wrap: wrap; }
+.irr-examples { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; color: var(--muted); margin-bottom: 12px; }
+.irr-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.irr-inputs .word-input { font-size: 1.1rem; }
+.word-input.irr-ok { border-color: var(--good); background: var(--good-bg); color: var(--good); font-weight: 700; opacity: 1; }
+.word-input.irr-bad { border-color: var(--bad); background: var(--bad-bg); color: var(--bad); text-decoration: line-through; opacity: 1; }
+.irr-fb { margin-top: 14px; }
+.irr-fb .fb-head { font-weight: 700; margin-bottom: 8px; }
+.irr-fb.correct .fb-head { color: var(--good); }
+.irr-fb.wrong .fb-head { color: var(--bad); }
+.irr-forms-big { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; font-size: 1.15rem; font-weight: 700; }
+.irr-note { font-size: 0.85rem; color: var(--muted); margin-top: 8px; }
+.irr-q { text-align: center; color: var(--muted); font-size: 0.85rem; margin-bottom: 12px; }
+.choice-opt.irr-choice { text-align: center; font-weight: 600; }
+.irr-back-forms { display: grid; gap: 4px; font-size: 1.3rem; font-weight: 800; }
+.irr-back-forms small { display: block; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.8; }
+.irr-search { margin-bottom: 14px; text-align: left; letter-spacing: normal; font-size: 1rem; }
+.irr-table { display: grid; gap: 6px; }
+.irr-head, .irr-row { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 8px; align-items: center; }
+.irr-head { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 700; padding: 0 14px; }
+.irr-row { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px 8px 14px; }
+.irr-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; overflow-wrap: anywhere; }
+.irr-head .irr-cols { overflow-wrap: normal; }
+.irr-row .irr-cols span:first-child { font-weight: 700; }
+.irr-pl { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+.irr-pat { font-size: 0.68rem; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 0 5px; margin-right: 6px; }
+.irr-count { text-align: center; color: var(--muted); font-size: 0.85rem; margin: 10px 0 0; }
+@media (max-width: 480px) {
+  .irr-inputs { grid-template-columns: 1fr; }
+  .irr-cols { font-size: 0.9rem; }
+}
+
 button:focus-visible, .struct-card:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 @media (max-width: 480px) {
@@ -589,6 +622,7 @@ button:focus-visible, .struct-card:focus-visible, input:focus-visible, textarea:
     <div class="section-switch">
       <button class="section-btn active" data-section="grammar" type="button">📚 Gramatyka</button>
       <button class="section-btn" data-section="vocab" type="button">🗂️ Słówka</button>
+      <button class="section-btn" data-section="irregular" type="button">🔤 Czasowniki</button>
       <button class="section-btn" data-section="stats" type="button">📈 Wyniki</button>
       <button class="section-btn" data-section="teacher" type="button" id="teacherTab" hidden>👩‍🏫 Klasa</button>
     </div>
@@ -795,6 +829,78 @@ button:focus-visible, .struct-card:focus-visible, input:focus-visible, textarea:
       </div>
 
       <div class="custom-list" id="cwList"></div>
+    </section>
+
+    <!-- WIDOK: CZASOWNIKI NIEREGULARNE — STRONA GŁÓWNA -->
+    <section id="view-irr-home" class="view">
+      <div class="len-row">
+        <span class="len-label">Aktywność:</span>
+        <button class="len-opt irr-act" data-act="type" type="button">⌨️ Wpisywanie</button>
+        <button class="len-opt irr-act" data-act="choice" type="button">🔘 Wybór</button>
+        <button class="len-opt irr-act" data-act="cards" type="button">🃏 Fiszki</button>
+      </div>
+      <p class="level-desc" id="irrActDesc"></p>
+      <div class="struct-grid" id="irrGrid"></div>
+    </section>
+
+    <!-- WIDOK: CZASOWNIKI — ĆWICZENIE -->
+    <section id="view-irr-drill" class="view">
+      <div class="drill-top">
+        <button class="link-back" id="irrBack" type="button">← Wróć do zestawów</button>
+        <button class="link-back link-end" id="irrEnd" type="button">Zakończ sesję ■</button>
+      </div>
+      <div class="drill-head">
+        <span class="drill-level" id="irrBadge"></span>
+        <h2 id="irrTitle"></h2>
+      </div>
+      <div class="drill-note" id="irrActLabel"></div>
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" id="irrProgressFill"></div></div>
+        <div class="progress-meta">
+          <span id="irrCounter">1 / 10</span>
+          <span id="irrScore">—</span>
+        </div>
+      </div>
+      <div class="card">
+        <div id="irrArea"></div>
+      </div>
+    </section>
+
+    <!-- WIDOK: CZASOWNIKI — PODSUMOWANIE -->
+    <section id="view-irr-done" class="view">
+      <div class="done-card">
+        <span class="done-level" id="irrDoneBadge"></span>
+        <h2 id="irrDoneTitle"></h2>
+        <div class="done-ring" id="irrDoneRing">
+          <div class="done-ring-inner">
+            <span class="done-pct" id="irrDonePct">0%</span>
+            <span class="done-pct-label">skuteczność</span>
+          </div>
+        </div>
+        <p class="done-msg" id="irrDoneMsg"></p>
+        <div class="done-stats">
+          <div><b id="irrDoneScore">0/0</b><span>poprawnych</span></div>
+        </div>
+        <div class="done-mistakes" id="irrDoneMistakes"></div>
+        <div class="done-actions">
+          <button class="btn btn-primary" id="irrDoneRepeat" type="button">Jeszcze raz</button>
+          <button class="btn btn-ghost" id="irrDoneReview" type="button" hidden>Powtórz błędne</button>
+          <button class="btn btn-ghost" id="irrDoneHome" type="button">Inny zestaw</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- WIDOK: CZASOWNIKI — TABELA -->
+    <section id="view-irr-table" class="view">
+      <button class="link-back" id="irrTableBack" type="button">← Wróć do zestawów</button>
+      <div class="drill-head">
+        <span class="drill-level">📋</span>
+        <h2>Tabela czasowników nieregularnych</h2>
+      </div>
+      <div class="drill-note">Szukaj po dowolnej formie albo po polsku. 🔊 odczytuje wszystkie trzy formy.</div>
+      <input id="irrSearch" class="word-input irr-search" type="search" placeholder="np. go, went, pływać…"
+             autocomplete="off" autocapitalize="off" spellcheck="false" />
+      <div class="irr-table" id="irrTable"></div>
     </section>
 
     <!-- WIDOK: MOJE WYNIKI -->
@@ -5647,7 +5753,7 @@ function calcStreak() {
 }
 
 function dueTodayCount() {
-  return srsDue("g").length + srsDue("v").length + srsDueStructs().length;
+  return srsDue("g").length + srsDue("v").length + srsDue("i").length + srsDueStructs().length;
 }
 
 // Podsumowanie dla nauczyciela (bez danych osobowych poza wpisanym przez ucznia imieniem).
@@ -5804,6 +5910,12 @@ function mergeState(r) {
     if (!b) return;
     if (!a || num(b.attempts) > num(a.attempts)) vocabProgress[id] = { best: Math.max(num(b.best, 100), a ? a.best : 0), attempts: num(b.attempts, 1e5) };
   });
+  const ip = r.irrProgress && typeof r.irrProgress === "object" ? r.irrProgress : {};
+  Object.keys(ip).forEach((id) => {
+    const a = irrProgress[id], b = ip[id];
+    if (!b || !/^(__all__|top|AAA|ABB|ABA|ABC)$/.test(id)) return;
+    if (!a || num(b.attempts) > num(a.attempts)) irrProgress[id] = { best: Math.max(num(b.best, 100), a ? a.best : 0), attempts: num(b.attempts, 1e5) };
+  });
   if (r.srs && typeof r.srs === "object") {
     ["items", "structs"].forEach((part) => {
       const src = r.srs[part] && typeof r.srs[part] === "object" ? r.srs[part] : {};
@@ -5842,6 +5954,7 @@ function mergeState(r) {
   if (!nick && typeof r.nick === "string") { nick = r.nick.slice(0, 40); lsSet("eng_nick", nick); }
   lsSet(STORAGE_KEY, JSON.stringify(progress));
   lsSet(VOCAB_PROGRESS_KEY, JSON.stringify(vocabProgress));
+  lsSet(IRR_PROGRESS_KEY, JSON.stringify(irrProgress));
   lsSet(SRS_KEY, JSON.stringify(srs));
   lsSet(VOCAB_CUSTOM_KEY, JSON.stringify(customWords));
   lsSet(STATS_KEY, JSON.stringify(stats));
@@ -5851,7 +5964,7 @@ function mergeState(r) {
 function buildState() {
   return {
     v: 1, updatedAt: Date.now(), nick: String(nick || "").slice(0, 40),
-    progress, vocabProgress, srs, customWords, customCats, stats
+    progress, vocabProgress, irrProgress, srs, customWords, customCats, stats
   };
 }
 
@@ -5906,6 +6019,7 @@ function refreshCurrentView() {
   if (!active) return;
   if (active.id === "view-home") renderHome();
   else if (active.id === "view-vocab-home") renderVocabHome();
+  else if (active.id === "view-irr-home") renderIrrHome();
   else if (active.id === "view-stats") renderStats();
   else if (active.id === "view-teacher") renderTeacher();
 }
@@ -6201,12 +6315,514 @@ async function importReport() {
   }
 }
 
+/* ======================================================================
+   CZASOWNIKI NIEREGULARNE
+   Format: bezokolicznik | Past Simple | Past Participle | po polsku | uwaga
+   Formy alternatywne rozdzielone „/” (każda jest akceptowana).
+   Pierwsze IRR_TOP pozycji to najczęściej używane czasowniki.
+   ====================================================================== */
+
+const IRR_RAW = `
+be|was/were|been|być|was: I/he/she/it, were: you/we/they
+have|had|had|mieć
+do|did|done|robić
+say|said|said|mówić, powiedzieć
+go|went|gone|iść, jechać|been = być gdzieś i wrócić (I've been to Paris)
+get|got|got/gotten|dostać, stać się|gotten — angielski amerykański
+make|made|made|robić, wytwarzać
+know|knew|known|wiedzieć, znać
+think|thought|thought|myśleć
+take|took|taken|brać, zabierać
+see|saw|seen|widzieć
+come|came|come|przychodzić
+give|gave|given|dawać
+find|found|found|znajdować
+tell|told|told|mówić (komuś), opowiadać
+become|became|become|stawać się
+leave|left|left|wyjeżdżać, zostawiać
+feel|felt|felt|czuć
+put|put|put|kłaść
+bring|brought|brought|przynosić
+begin|began|begun|zaczynać
+keep|kept|kept|trzymać, zachowywać
+hold|held|held|trzymać (w ręku)
+write|wrote|written|pisać
+stand|stood|stood|stać
+hear|heard|heard|słyszeć
+let|let|let|pozwalać
+mean|meant|meant|znaczyć
+set|set|set|ustawiać
+meet|met|met|spotykać
+run|ran|run|biegać
+pay|paid|paid|płacić
+sit|sat|sat|siedzieć
+speak|spoke|spoken|mówić (językiem)
+lose|lost|lost|gubić, przegrywać
+buy|bought|bought|kupować
+eat|ate|eaten|jeść
+drink|drank|drunk|pić
+sleep|slept|slept|spać
+read|read|read|czytać|wymowa: /riːd/ – /red/ – /red/
+understand|understood|understood|rozumieć
+learn|learnt/learned|learnt/learned|uczyć się|learned — częściej w amerykańskim
+drive|drove|driven|prowadzić (auto)
+fly|flew|flown|latać
+swim|swam|swum|pływać
+sing|sang|sung|śpiewać
+ring|rang|rung|dzwonić
+break|broke|broken|łamać, psuć
+choose|chose|chosen|wybierać
+forget|forgot|forgotten|zapominać
+forgive|forgave|forgiven|wybaczać
+freeze|froze|frozen|zamarzać
+steal|stole|stolen|kraść
+wake|woke|woken|budzić (się)
+wear|wore|worn|nosić (ubranie)
+tear|tore|torn|drzeć
+throw|threw|thrown|rzucać
+grow|grew|grown|rosnąć
+draw|drew|drawn|rysować
+blow|blew|blown|dmuchać, wiać
+show|showed|shown/showed|pokazywać
+fall|fell|fallen|spadać, upadać
+ride|rode|ridden|jeździć (rowerem, konno)
+rise|rose|risen|wznosić się, rosnąć
+hide|hid|hidden|chować (się)
+bite|bit|bitten|gryźć
+shake|shook|shaken|potrząsać
+cut|cut|cut|ciąć
+hit|hit|hit|uderzać
+hurt|hurt|hurt|ranić, boleć
+cost|cost|cost|kosztować
+shut|shut|shut|zamykać
+quit|quit|quit|rzucać (np. pracę)
+spread|spread|spread|rozprzestrzeniać, smarować
+bet|bet|bet|zakładać się
+burst|burst|burst|pękać
+send|sent|sent|wysyłać
+spend|spent|spent|wydawać (pieniądze), spędzać
+lend|lent|lent|pożyczać (komuś)
+build|built|built|budować
+catch|caught|caught|łapać
+teach|taught|taught|uczyć (kogoś)
+fight|fought|fought|walczyć
+sell|sold|sold|sprzedawać
+feed|fed|fed|karmić
+lead|led|led|prowadzić, przewodzić
+win|won|won|wygrywać
+hang|hung|hung|wieszać|o powieszeniu człowieka: hanged
+dig|dug|dug|kopać
+stick|stuck|stuck|przyklejać
+shoot|shot|shot|strzelać
+light|lit|lit|zapalać
+lay|laid|laid|kłaść (coś), nakrywać (do stołu)
+lie|lay|lain|leżeć|kłamać to czasownik regularny: lie – lied – lied
+smell|smelt/smelled|smelt/smelled|pachnieć, wąchać
+burn|burnt/burned|burnt/burned|palić (się)
+dream|dreamt/dreamed|dreamt/dreamed|śnić, marzyć
+spell|spelt/spelled|spelt/spelled|literować
+`;
+
+const IRR_TOP = 40;
+const IRREGULAR = IRR_RAW.trim().split("\n")
+  .map((line) => line.split("|"))
+  .filter((p) => p[1] && p[2])
+  .map(([base, past, pp, pl, note], i) => {
+    const p0 = past.split("/")[0], q0 = pp.split("/")[0];
+    const pat = base === p0 && base === q0 ? "AAA" : p0 === q0 ? "ABB" : base === q0 ? "ABA" : "ABC";
+    return { base, past, pp, pl: pl || "", note: note || "", pat, top: i < IRR_TOP };
+  });
+
+const IRR_SETS = [
+  { id: "top", badge: "⭐", title: "40 najczęstszych", desc: "Od nich zacznij — pojawiają się niemal w każdej rozmowie.", filter: (v) => v.top },
+  { id: "AAA", badge: "AAA", title: "Trzy takie same formy", desc: "cut – cut – cut. Najłatwiejsza grupa: nic się nie zmienia.", filter: (v) => v.pat === "AAA" },
+  { id: "ABB", badge: "ABB", title: "2. i 3. forma takie same", desc: "buy – bought – bought. Największa grupa — wystarczy zapamiętać jedną nową formę.", filter: (v) => v.pat === "ABB" },
+  { id: "ABA", badge: "ABA", title: "3. forma jak bezokolicznik", desc: "come – came – come. Mała grupa, łatwo ją opanować.", filter: (v) => v.pat === "ABA" },
+  { id: "ABC", badge: "ABC", title: "Trzy różne formy", desc: "go – went – gone. Najtrudniejsze — warto wracać do nich często.", filter: (v) => v.pat === "ABC" }
+];
+
+const IRR_ACT = {
+  type: { name: "⌨️ Wpisywanie", desc: "Widzisz bezokolicznik — wpisz Past Simple i Past Participle." },
+  choice: { name: "🔘 Wybór", desc: "Wybierz poprawną parę form (Past Simple – Past Participle) spośród czterech." },
+  cards: { name: "🃏 Fiszki", desc: "Przypomnij sobie trzy formy, odwróć kartę i oceń, czy je znasz." }
+};
+const IRR_ALL_RANDOM = 20;
+let irrActivity = lsGet("eng_irr_act", "type");
+if (!IRR_ACT[irrActivity]) irrActivity = "type";
+
+const IRR_PROGRESS_KEY = "eng_irr_v1";
+let irrProgress = lsJSON(IRR_PROGRESS_KEY, null) || {};
+function saveIrrProgress() { lsSet(IRR_PROGRESS_KEY, JSON.stringify(irrProgress)); scheduleCloudSave(); }
+
+let irrSession = null;
+let lastIrr = null;   // ostatnia zakończona sesja (do „Jeszcze raz” / „Powtórz błędne”)
+
+function irrFind(base) { return IRREGULAR.find((v) => v.base === base); }
+function irrFormsText(v) { return `${v.base} – ${v.past} – ${v.pp}`; }
+function irrSpeech(v) { return [v.base, v.past.split("/")[0], v.pp.split("/")[0]].join(", "); }
+
+// Odpowiedź jest poprawna, gdy każda wpisana forma należy do dozwolonych (np. „was”, „were” lub „was/were”).
+function irrMatches(input, allowed) {
+  const ok = allowed.split("/").map((x) => x.toLowerCase());
+  const toks = String(input).toLowerCase().replace(/[’‘`]/g, "'")
+    .split(/[\s,\/;]+|\bor\b/).map((t) => t.trim()).filter(Boolean);
+  return toks.length > 0 && toks.every((t) => ok.includes(t));
+}
+
+function irrRegular(base) {
+  if (/e$/.test(base)) return base + "d";
+  if (/[^aeiou]y$/.test(base)) return base.slice(0, -1) + "ied";
+  return base + "ed";
+}
+
+// Powtórki (SRS) — te same „pudełka” co słówka i zdania.
+function srsIrr(v, ok) {
+  const key = "i:" + v.base;
+  const rec = srs.items[key] || (srs.items[key] = { k: "i" });
+  rec.d = { base: v.base, pl: v.pl };
+  srsStep(rec, ok);
+  saveSrs();
+}
+function irrDueList() { return srsDue("i").map(([, r]) => irrFind(r.d.base)).filter(Boolean); }
+
+// --- Strona główna czasowników ---
+function irrCard(html, cls, onClick) {
+  const c = document.createElement("div");
+  c.className = "struct-card" + (cls ? " " + cls : "");
+  c.innerHTML = html;
+  if (onClick) {
+    c.tabIndex = 0;
+    c.addEventListener("click", onClick);
+    c.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target === c) onClick(e); });
+  }
+  return c;
+}
+
+function renderIrrHome() {
+  document.getElementById("irrActDesc").textContent = IRR_ACT[irrActivity].desc;
+  document.querySelectorAll(".irr-act").forEach((b) => b.classList.toggle("active", b.dataset.act === irrActivity));
+  const grid = document.getElementById("irrGrid");
+  grid.innerHTML = "";
+
+  // powtórki na dziś
+  const due = irrDueList();
+  const tracked = Object.keys(srs.items).filter((k) => srs.items[k].k === "i").length;
+  if (due.length) {
+    grid.appendChild(irrCard(`
+      <div class="sc-top"><h3>🧠 Powtórka czasowników na dziś</h3><span class="sc-best srs-count">${due.length}</span></div>
+      <div class="sc-note">Czasowniki wracają tym rzadziej, im lepiej je znasz: po 1, 2, 4, 8, 16 i 32 dniach. Błąd cofa czasownik na początek.</div>
+      <div class="sc-foot"><span>${IRR_ACT[irrActivity].name}</span><span class="sc-cta">Powtórz →</span></div>`,
+      "srs-card", () => startIrr(due, { setId: "__review__", title: "Powtórka czasowników", level: "🧠", review: true })));
+  } else {
+    const next = nextDue("i");
+    grid.appendChild(irrCard(`
+      <div class="sc-top"><h3>🧠 Powtórka czasowników na dziś</h3><span class="sc-new">${tracked ? "zrobione" : "pusto"}</span></div>
+      <div class="sc-note">${tracked
+        ? `W powtórkach: ${tracked} ${plural(tracked, "czasownik", "czasowniki", "czasowników")}. Następna powtórka: ${next ? fmtDue(next) : "—"}.`
+        : "Każdy przećwiczony czasownik trafia tutaj i wraca w odpowiednim momencie, zanim go zapomnisz."}</div>`,
+      "srs-card calm", null));
+  }
+
+  // tabela
+  grid.appendChild(irrCard(`
+    <div class="sc-top"><h3>📋 Tabela czasowników</h3><span class="sc-new">${IRREGULAR.length}</span></div>
+    <div class="sc-note">Wszystkie formy w jednym miejscu, z wyszukiwarką i odsłuchem wymowy.</div>
+    <div class="sc-foot"><span></span><span class="sc-cta">Przeglądaj →</span></div>`,
+    "", openIrrTable));
+
+  // wszystkie
+  const recAll = irrProgress.__all__;
+  const ac = irrCard(`
+    <div class="sc-top"><h3>🌍 Wszystkie czasowniki</h3>${recAll ? `<span class="sc-best">${recAll.best}%</span>` : `<span class="sc-new">${IRREGULAR.length}</span>`}</div>
+    <div class="sc-note">Czasowniki wymieszane ze wszystkich grup. Każda runda losuje nowy zestaw.</div>
+    <div class="sc-foot">
+      <span><button class="review-clear" id="irrAllFull" type="button">Wszystkie ${IRREGULAR.length} naraz</button></span>
+      <span class="sc-cta">${IRR_ALL_RANDOM} losowych →</span>
+    </div>`, "all-card", () => startIrrSet("__all__"));
+  ac.querySelector("#irrAllFull").addEventListener("click", (e) => { e.stopPropagation(); startIrrSet("__all_full__"); });
+  grid.appendChild(ac);
+
+  // zestawy
+  IRR_SETS.forEach((set) => {
+    const verbs = IRREGULAR.filter(set.filter);
+    const rec = irrProgress[set.id];
+    const best = rec ? rec.best : 0;
+    grid.appendChild(irrCard(`
+      <div class="sc-top"><h3>${escapeHtml(set.title)}</h3>${rec ? `<span class="sc-best">${best}%</span>` : `<span class="sc-new">nowe</span>`}</div>
+      <div class="sc-pattern">${escapeHtml(set.badge)} · ${verbs.length} ${plural(verbs.length, "czasownik", "czasowniki", "czasowników")}</div>
+      <div class="sc-note">${escapeHtml(set.desc)}</div>
+      <div class="irr-examples">${verbs.slice(0, 3).map((v) => escapeHtml(irrFormsText(v))).join(" · ")}</div>
+      <div class="sc-bar"><div class="sc-bar-fill" style="width:${best}%"></div></div>
+      <div class="sc-foot"><span>${IRR_ACT[irrActivity].name}</span><span class="sc-cta">Ćwicz →</span></div>`,
+      "", () => startIrrSet(set.id)));
+  });
+}
+
+function startIrrSet(id) {
+  if (id === "__all__" || id === "__all_full__") {
+    const all = shuffle(IRREGULAR);
+    startIrr(id === "__all__" ? all.slice(0, IRR_ALL_RANDOM) : all,
+      { setId: "__all__", title: "Wszystkie czasowniki", level: "🌍", repeatId: id });
+    return;
+  }
+  const set = IRR_SETS.find((s) => s.id === id);
+  if (set) startIrr(IRREGULAR.filter(set.filter), { setId: set.id, title: set.title, level: set.badge });
+}
+
+function startIrr(verbs, meta) {
+  if (!verbs.length) return;
+  irrSession = Object.assign({
+    queue: shuffle(verbs), i: 0, answered: 0, correct: 0, mistakes: [], activity: irrActivity
+  }, meta);
+  document.getElementById("irrBadge").textContent = meta.level;
+  document.getElementById("irrTitle").textContent = meta.title;
+  document.getElementById("irrActLabel").textContent = IRR_ACT[irrActivity].desc;
+  switchView("irr-drill");
+  renderIrrItem();
+}
+
+function irrUpdateMeta() {
+  const s = irrSession;
+  const total = s.queue.length;
+  document.getElementById("irrProgressFill").style.width = Math.round((s.i / total) * 100) + "%";
+  document.getElementById("irrCounter").textContent = `${Math.min(s.i + 1, total)} / ${total}`;
+  document.getElementById("irrScore").textContent = s.answered ? `${s.correct} / ${s.answered} ✓` : "—";
+}
+
+function irrPromptHtml(v) {
+  return `
+    <div class="vocab-prompt">
+      <div class="vp-hint">${escapeHtml(v.pl)}</div>
+      <div class="vp-word">${escapeHtml(v.base)}
+        <button type="button" class="say-btn" id="irrSayBase" aria-label="Posłuchaj">🔊</button>
+      </div>
+    </div>`;
+}
+
+function renderIrrItem() {
+  const s = irrSession;
+  const v = s.queue[s.i];
+  irrUpdateMeta();
+  const area = document.getElementById("irrArea");
+  if (s.activity === "cards") renderIrrCard(area, v);
+  else if (s.activity === "choice") renderIrrChoice(area, v);
+  else renderIrrType(area, v);
+  const say = document.getElementById("irrSayBase");
+  if (say) say.addEventListener("click", (e) => { e.stopPropagation(); speakText(v.base, "irrSayBase", 0.9); });
+}
+
+function irrRecord(v, ok) {
+  const s = irrSession;
+  s.answered += 1;
+  if (ok) s.correct += 1;
+  else s.mistakes.push(v);
+  srsIrr(v, ok);
+  irrUpdateMeta();
+}
+
+function irrNext() {
+  const s = irrSession;
+  if (!s) return;
+  s.i += 1;
+  if (s.i >= s.queue.length) finishIrr();
+  else renderIrrItem();
+}
+
+// Wspólny blok informacji zwrotnej z odsłuchem i przyciskiem „Dalej”.
+function irrFeedback(v, ok) {
+  const fb = document.getElementById("irrFb");
+  fb.className = "irr-fb " + (ok ? "correct" : "wrong");
+  fb.innerHTML = `
+    <div class="fb-head">${ok ? "✓ Dobrze!" : "✗ Poprawnie:"}</div>
+    <div class="fb-answer irr-forms-big">${escapeHtml(irrFormsText(v))}
+      <button type="button" class="say-btn" id="irrSayAll" aria-label="Posłuchaj form">🔊</button>
+    </div>
+    ${v.note ? `<div class="irr-note">💡 ${escapeHtml(v.note)}</div>` : ""}
+    <div class="continue-row"><button class="btn btn-primary continue-btn" id="irrNextBtn" type="button">Dalej →</button></div>`;
+  document.getElementById("irrSayAll").addEventListener("click", () => speakText(irrSpeech(v), "irrSayAll", 0.85));
+  const next = document.getElementById("irrNextBtn");
+  next.addEventListener("click", irrNext);
+  next.focus();
+}
+
+// --- Aktywność: WPISYWANIE ---
+function renderIrrType(area, v) {
+  area.innerHTML = irrPromptHtml(v) + `
+    <div class="irr-inputs">
+      <label class="cw-label">Past Simple
+        <input id="irrPast" class="word-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" />
+      </label>
+      <label class="cw-label">Past Participle
+        <input id="irrPP" class="word-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" />
+      </label>
+    </div>
+    <button class="btn btn-primary continue-btn" id="irrCheck" type="button">Sprawdź</button>
+    <div id="irrFb"></div>`;
+  const pastIn = document.getElementById("irrPast");
+  const ppIn = document.getElementById("irrPP");
+  const check = document.getElementById("irrCheck");
+  let done = false;
+  const submit = () => {
+    if (done) return;
+    if (!pastIn.value.trim() && !ppIn.value.trim()) { pastIn.focus(); return; }
+    done = true;
+    const okPast = irrMatches(pastIn.value, v.past);
+    const okPP = irrMatches(ppIn.value, v.pp);
+    pastIn.disabled = ppIn.disabled = true;
+    pastIn.classList.add(okPast ? "irr-ok" : "irr-bad");
+    ppIn.classList.add(okPP ? "irr-ok" : "irr-bad");
+    check.remove();
+    irrRecord(v, okPast && okPP);
+    irrFeedback(v, okPast && okPP);
+  };
+  pastIn.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); ppIn.focus(); } });
+  ppIn.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } });
+  check.addEventListener("click", submit);
+  pastIn.focus();
+}
+
+// --- Aktywność: WYBÓR ---
+function irrOptions(v) {
+  const p = v.past.split("/")[0], q = v.pp.split("/")[0], b = v.base, r = irrRegular(b);
+  const correct = `${p} – ${q}`;
+  const cands = [`${r} – ${r}`, `${q} – ${p}`, `${p} – ${p}`, `${q} – ${q}`, `${p} – ${r}`, `${r} – ${q}`,
+    `${b} – ${p}`, `${p} – ${b}`, `${b} – ${r}`, `${r} – ${b}`];
+  const wrong = shuffle([...new Set(cands)].filter((c) => c !== correct)).slice(0, 3);
+  return { correct, options: shuffle([correct].concat(wrong)) };
+}
+
+function renderIrrChoice(area, v) {
+  const { correct, options } = irrOptions(v);
+  area.innerHTML = irrPromptHtml(v) + `
+    <div class="irr-q">Past Simple – Past Participle:</div>
+    <div class="choice-grid">${options.map((o, i) =>
+      `<button type="button" class="choice-opt irr-choice" data-i="${i}">${escapeHtml(o)}</button>`).join("")}</div>
+    <div id="irrFb"></div>`;
+  const btns = area.querySelectorAll(".irr-choice");
+  btns.forEach((btn) => btn.addEventListener("click", () => {
+    const ok = options[+btn.dataset.i] === correct;
+    btns.forEach((b) => {
+      b.disabled = true;
+      if (options[+b.dataset.i] === correct) b.classList.add("correct");
+    });
+    if (!ok) btn.classList.add("wrong");
+    irrRecord(v, ok);
+    irrFeedback(v, ok);
+  }));
+}
+
+// --- Aktywność: FISZKI ---
+function renderIrrCard(area, v) {
+  area.innerHTML = `
+    <div class="flashcard" id="irrFlash">
+      <div class="flashcard-inner">
+        <div class="flashcard-face flashcard-front">
+          <span class="fc-hint">${escapeHtml(v.pl)}</span>
+          <span class="fc-word">${escapeHtml(v.base)}
+            <button type="button" class="say-btn" id="irrSayBase" aria-label="Posłuchaj">🔊</button>
+          </span>
+          <span class="fc-hint">przypomnij sobie 2. i 3. formę · kliknij, aby odwrócić</span>
+        </div>
+        <div class="flashcard-face flashcard-back">
+          <div class="irr-back-forms">
+            <div><small>Infinitive</small>${escapeHtml(v.base)}</div>
+            <div><small>Past Simple</small>${escapeHtml(v.past)}</div>
+            <div><small>Past Participle</small>${escapeHtml(v.pp)}</div>
+          </div>
+          <button type="button" class="say-btn" id="irrSayCard" aria-label="Posłuchaj form">🔊</button>
+          ${v.note ? `<span class="fc-hint">💡 ${escapeHtml(v.note)}</span>` : ""}
+        </div>
+      </div>
+    </div>
+    <div class="fc-actions">
+      <button class="btn btn-ghost" id="irrUnknown" type="button">Nie znam</button>
+      <button class="btn btn-primary" id="irrKnown" type="button">Znam ✓</button>
+    </div>`;
+  const card = document.getElementById("irrFlash");
+  card.addEventListener("click", (e) => {
+    if (e.target.closest(".say-btn")) return;
+    card.classList.toggle("flipped");
+  });
+  document.getElementById("irrSayCard").addEventListener("click", (e) => {
+    e.stopPropagation(); speakText(irrSpeech(v), "irrSayCard", 0.85);
+  });
+  const answer = (ok) => { irrRecord(v, ok); irrNext(); };
+  document.getElementById("irrKnown").addEventListener("click", () => answer(true));
+  document.getElementById("irrUnknown").addEventListener("click", () => answer(false));
+}
+
+// --- Podsumowanie ---
+function finishIrr() {
+  const s = irrSession;
+  if (!s) return;
+  const pct = s.answered ? Math.round((s.correct / s.answered) * 100) : 0;
+  if (!s.review && s.answered) {
+    const rec = irrProgress[s.setId] || { best: 0, attempts: 0 };
+    rec.attempts += 1;
+    rec.best = Math.max(rec.best, pct);
+    irrProgress[s.setId] = rec;
+    saveIrrProgress();
+  }
+  logSession({ k: "i", id: s.setId, title: "Czasowniki: " + s.title, level: s.level, pct, n: s.answered, c: s.correct, mode: s.activity });
+
+  document.getElementById("irrDoneBadge").textContent = s.level;
+  document.getElementById("irrDoneTitle").textContent = s.title;
+  document.getElementById("irrDonePct").textContent = pct + "%";
+  document.getElementById("irrDoneScore").textContent = `${s.correct} / ${s.answered}`;
+  document.getElementById("irrDoneRing").style.background =
+    `conic-gradient(var(--accent) ${pct * 3.6}deg, var(--track) 0deg)`;
+  document.getElementById("irrDoneMsg").textContent = pct >= 90 ? "Świetnie opanowane!" :
+    pct >= 60 ? "Dobrze — powtórz, by utrwalić." : "Powtórz ten zestaw jeszcze raz.";
+
+  const uniq = [...new Set(s.mistakes)];
+  document.getElementById("irrDoneMistakes").innerHTML = uniq.length
+    ? `<h4>Do powtórzenia (${uniq.length}):</h4>` + uniq.map((v) =>
+        `<div class="mistake"><span class="m-pl">${escapeHtml(v.pl)}</span><span class="m-en">${escapeHtml(irrFormsText(v))}</span></div>`).join("")
+    : (s.answered ? `<div class="no-mistakes">Komplet! 🎉</div>` : "");
+
+  lastIrr = { setId: s.setId, repeatId: s.repeatId, title: s.title, level: s.level, review: s.review, verbs: s.queue.slice(), mistakes: uniq };
+  const rev = document.getElementById("irrDoneReview");
+  rev.hidden = !uniq.length;
+  rev.textContent = `Powtórz błędne (${uniq.length})`;
+  irrSession = null;
+  switchView("irr-done");
+}
+
+// --- Tabela ---
+function openIrrTable() {
+  irrSession = null;
+  switchView("irr-table");
+  renderIrrTable();
+}
+
+function renderIrrTable() {
+  const q = document.getElementById("irrSearch").value.trim().toLowerCase();
+  const list = IRREGULAR.map((v, i) => [v, i])
+    .filter(([v]) => !q || [v.base, v.past, v.pp, v.pl].some((x) => x.toLowerCase().includes(q)))
+    .sort((a, b) => a[0].base.localeCompare(b[0].base));
+  const el = document.getElementById("irrTable");
+  el.innerHTML = `<div class="irr-head"><div class="irr-cols"><span>Infinitive</span><span>Past Simple</span><span>Past Participle</span></div><span></span></div>` +
+    list.map(([v, i]) => `
+      <div class="irr-row">
+        <div>
+          <div class="irr-cols"><span>${escapeHtml(v.base)}</span><span>${escapeHtml(v.past)}</span><span>${escapeHtml(v.pp)}</span></div>
+          <div class="irr-pl"><span class="irr-pat">${v.pat}</span>${escapeHtml(v.pl)}${v.note ? " · " + escapeHtml(v.note) : ""}</div>
+        </div>
+        <button type="button" class="say-btn" id="irrT${i}" data-i="${i}" aria-label="Posłuchaj: ${escapeHtml(v.base)}">🔊</button>
+      </div>`).join("") +
+    `<p class="irr-count">${list.length ? `${list.length} ${plural(list.length, "czasownik", "czasowniki", "czasowników")}` : "Nic nie znaleziono."}</p>`;
+}
+
 // --- Przełączanie sekcji Gramatyka / Słówka ---
 function showSection(section) {
   if (section === "vocab") {
     vocabSession = null;
     switchView("vocab-home");
     renderVocabHome();
+  } else if (section === "irregular") {
+    irrSession = null;
+    switchView("irr-home");
+    renderIrrHome();
   } else if (section === "stats") {
     switchView("stats");
     renderStats();
@@ -6367,6 +6983,37 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   document.getElementById("cwExPl").addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); addCustomWord(); }
+  });
+
+  // --- Czasowniki nieregularne ---
+  document.querySelectorAll(".irr-act").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      irrActivity = btn.dataset.act;
+      lsSet("eng_irr_act", irrActivity);
+      renderIrrHome();
+    });
+  });
+  const irrHome = () => { irrSession = null; switchView("irr-home"); renderIrrHome(); };
+  document.getElementById("irrBack").addEventListener("click", irrHome);
+  document.getElementById("irrTableBack").addEventListener("click", irrHome);
+  document.getElementById("irrDoneHome").addEventListener("click", irrHome);
+  document.getElementById("irrEnd").addEventListener("click", () => {
+    if (irrSession && irrSession.answered) finishIrr(); else irrHome();
+  });
+  document.getElementById("irrDoneRepeat").addEventListener("click", () => {
+    if (!lastIrr) return;
+    if (lastIrr.review) startIrr(lastIrr.verbs, { setId: lastIrr.setId, title: lastIrr.title, level: lastIrr.level, review: true });
+    else startIrrSet(lastIrr.repeatId || lastIrr.setId);
+  });
+  document.getElementById("irrDoneReview").addEventListener("click", () => {
+    if (lastIrr && lastIrr.mistakes.length) {
+      startIrr(lastIrr.mistakes, { setId: "__review__", title: "Powtórka błędów", level: "★", review: true });
+    }
+  });
+  document.getElementById("irrSearch").addEventListener("input", renderIrrTable);
+  document.getElementById("irrTable").addEventListener("click", (e) => {
+    const b = e.target.closest(".say-btn");
+    if (b) speakText(irrSpeech(IRREGULAR[+b.dataset.i]), b.id, 0.85);
   });
 
   initCloud();
